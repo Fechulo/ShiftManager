@@ -734,6 +734,94 @@ body {
 .cal-select:hover { border-color: var(--border2); }
 .cal-select:focus { border-color: var(--accent2); }
 
+
+
+/* ── PROFILE TABS ── */
+.profile-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; }
+.profile-tab-wrap { display: flex; align-items: center; }
+.profile-tab {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.profile-tab:hover { border-color: var(--border2); color: var(--text); }
+.profile-tab.selected {
+  background: color-mix(in srgb, var(--accent2) 15%, transparent);
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+.profile-delete {
+  background: none; border: none; color: var(--text-muted);
+  cursor: pointer; padding: 2px 6px; font-size: 14px;
+  line-height: 1; border-radius: 3px;
+}
+.profile-delete:hover { color: var(--accent); }
+
+/* ── TODAY BUTTON ── */
+.today-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  letter-spacing: 1px;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text-dim);
+  width: auto;
+  min-width: unset;
+  height: auto;
+  font-family: var(--font-body);
+}
+.today-btn:hover {
+  background: var(--surface3);
+  border-color: var(--border2);
+  color: var(--text);
+}
+.today-btn.is-today {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+/* ── NIGHT MODE RADIO ── */
+.night-mode-opts { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.night-mode-opts .checkbox-label { align-items: flex-start; gap: 10px; }
+.night-mode-opts input[type=radio] { margin-top: 2px; flex-shrink: 0; accent-color: var(--accent2); }
+
+
+/* ── PROFILE SELECT ROW ── */
+.profile-select-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.profile-select {
+  flex: 1;
+  cursor: pointer;
+}
+
+/* ── DANGER ZONE ── */
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-danger-outline:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 </style>
 </head>
 <body>
@@ -754,13 +842,14 @@ body {
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
-// ===== CONSTANTS =====
-
-const CYCLE_LENGTH = 8;
+const CYCLE_LENGTH           = 8;
 const WORKING_DAYS_PER_CYCLE = 5;
-const STORAGE_KEY = 'atcsm';
+const STORAGE_KEY            = 'atcsm';
+const APP_VERSION            = 'v1.4';
 
-const DEFAULT_DUTY_TYPES = [
+// ===== DEFAULT PROFILES =====
+
+const DATCC_DUTIES = [
   { id: 'C',   name: 'C',   startTime: '06:00', endTime: '12:00', color: '#5B7FE0', overnight: false },
   { id: 'F',   name: 'F',   startTime: '06:30', endTime: '12:00', color: '#4E9EFF', overnight: false },
   { id: 'E',   name: 'E',   startTime: '06:30', endTime: '13:30', color: '#3DCFE3', overnight: false },
@@ -773,69 +862,166 @@ const DEFAULT_DUTY_TYPES = [
   { id: 'OC2', name: 'OC2', startTime: '06:00', endTime: '18:00', color: '#34D399', overnight: false },
   { id: 'OC3', name: 'OC3', startTime: '12:00', endTime: '23:59', color: '#FF9B3D', overnight: false },
 ];
+// Attribute definition: { id, name, hasFreeText, freeTextLabel? }
+const DATCC_ATTRS = [
+  { id: 'ot',      name: 'OT',      hasFreeText: false },
+  { id: 'flexi',   name: 'Flexi',   hasFreeText: false },
+  { id: 'swapped', name: 'Swap', hasFreeText: true, freeTextLabel: 'Swapped with' },
+  { id: 'uca',     name: 'UCA',     hasFreeText: false },
+];
+
+const DEFAULT_PROFILES = [
+  { id: 'datcc',   name: 'DATCC',   dutyTypes: DATCC_DUTIES,  attributes: DATCC_ATTRS },
+  { id: 'rotunda', name: 'Rotunda', dutyTypes: [
+      { id: 'LD', name: 'LD', startTime: '07:30', endTime: '20:30', color: '#4E9EFF', overnight: false },
+      { id: 'ND', name: 'ND', startTime: '20:00', endTime: '08:00', color: '#9D79F2', overnight: true  },
+    ],
+    attributes: [
+      { id: 'ot',    name: 'OT',    hasFreeText: false },
+      { id: 'swapped', name: 'Swap', hasFreeText: true, freeTextLabel: 'Swapped with' },
+    ]
+  },
+];
 
 // ===== UTILITIES =====
 
-const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const uid        = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const fmtDate    = d => { const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
+const parseLocalDate = s => { const [y,m,d] = s.split('-').map(Number); return new Date(y, m-1, d); };
+const addDays    = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const isOvernightTimes = (s, e) => { const t = x => { const [h,m] = x.split(':').map(Number); return h*60+m; }; return t(s) > t(e); };
 
-const fmtDate = (date) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+// Migrate a duty from old field-based format to new attrs dict format
+const migrateDuty = d => {
+  if (d.attrs !== undefined) return d;
+  const attrs = {};
+  if (d.isOvertime) attrs.ot      = true;
+  if (d.isFlexi)    attrs.flexi   = true;
+  if (d.isSwapped)  attrs.swapped = d.swappedWith || '';
+  if (d.isUCA)      attrs.uca     = true;
+  const { isOvertime, isFlexi, isSwapped, swappedWith, isUCA, ...rest } = d;
+  return { ...rest, attrs, notes: d.notes || '' };
 };
 
-const parseLocalDate = (str) => {
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(y, m - 1, d);
+// Build display bits for a duty: attribute labels + notes
+const buildAttrBits = (duty, attributes) => {
+  const bits = [];
+  for (const attr of (attributes || [])) {
+    const val = duty.attrs?.[attr.id];
+    if (!val && val !== '') continue;
+    if (attr.hasFreeText && typeof val === 'string' && val.trim()) bits.push(`${attr.name}: ${val}`);
+    else if (attr.hasFreeText && !val) continue;
+    else bits.push(attr.name);
+  }
+  if (duty.notes?.trim()) bits.push(duty.notes.trim());
+  return bits;
 };
 
-const addDays = (date, n) => {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-};
-
-const isOvernightTimes = (start, end) => {
-  const toMins = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
-  return toMins(start) > toMins(end);
-};
-
-const buildTitle = (duty, dutyTypes) => {
+// Build Google Calendar event title
+const buildTitle = (duty, dutyTypes, attributes) => {
   const type = dutyTypes.find(t => t.id === duty.typeId);
   const name = type ? type.name : (duty.customName || 'Custom');
-  const attrs = [];
-  if (duty.isOvertime) attrs.push('OT');
-  if (duty.isFlexi)    attrs.push('Flexi');
-  if (duty.isUCA)      attrs.push('UCA');
-  if (duty.isSwapped)  attrs.push(duty.swappedWith ? `Swap - ${duty.swappedWith}` : 'Swap');
+  const attrs = buildAttrBits(duty, attributes);
   return attrs.length ? `${name} (${attrs.join(', ')})` : name;
 };
 
-// Returns 1-5 if date is a working day in the cycle, null if rest day or no config
+// Parse a GCal event back into a duty (best-effort)
+const parseEventToDuty = (event, dutyTypes, attributes, nightMode) => {
+  const summary = event.summary || '';
+  const parenMatch = summary.match(/^(.+?)(?:\s*\((.+)\))?$/);
+  const typeName = parenMatch ? parenMatch[1].trim() : summary;
+  const attrStr  = parenMatch ? (parenMatch[2] || '') : '';
+  const type = dutyTypes.find(t => t.name === typeName);
+
+  const startDT = event.start?.dateTime;
+  const endDT   = event.end?.dateTime;
+  if (!startDT || !endDT) return null;
+
+  const startTime = startDT.slice(11, 16);
+  const endTime   = endDT.slice(11, 16);
+  const startDate = startDT.slice(0, 10);
+  const endDate   = endDT.slice(0, 10);
+  const overnight = startDate !== endDate;
+  const date = overnight ? (nightMode === 'startDate' ? startDate : endDate) : startDate;
+
+  // Parse attrs from title parens
+  const parts = attrStr ? attrStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+  const attrs = {};
+  const unmatchedParts = [];
+  for (const part of parts) {
+    let matched = false;
+    for (const attr of (attributes || [])) {
+      if (attr.hasFreeText && part.startsWith(attr.name + ':')) {
+        attrs[attr.id] = part.slice(attr.name.length + 1).trim();
+        matched = true; break;
+      } else if (!attr.hasFreeText && part === attr.name) {
+        attrs[attr.id] = true;
+        matched = true; break;
+      }
+    }
+    if (!matched) unmatchedParts.push(part);
+  }
+
+  return {
+    id: uid(), date,
+    typeId: type ? type.id : null,
+    customName: type ? '' : typeName,
+    startTime, endTime, overnight,
+    attrs,
+    notes: unmatchedParts.join(', ') || (event.description || ''),
+    synced: true,
+    googleEventId: event.id,
+  };
+};
+
+// Reconcile local duties against Google Calendar events
+async function reconcileCalendar(calId, duties, nightMode, dutyTypes, attributes) {
+  try {
+    const timeMin = new Date(Date.now() - 90 * 86400000).toISOString();
+    const timeMax = new Date(Date.now() + 400 * 86400000).toISOString();
+    let allEvents = [], pageToken = null;
+    do {
+      const params = { calendarId: calId, timeMin, timeMax, singleEvents: true, maxResults: 250,
+        privateExtendedProperty: 'source=atcsm' };
+      if (pageToken) params.pageToken = pageToken;
+      const resp = await gapi.client.calendar.events.list(params);
+      allEvents = allEvents.concat(resp.result.items || []);
+      pageToken = resp.result.nextPageToken || null;
+    } while (pageToken);
+
+    const eventMap = {};
+    allEvents.forEach(e => { eventMap[e.id] = e; });
+
+    let updated = duties.map(d => {
+      if (d.googleEventId && !eventMap[d.googleEventId])
+        return { ...d, synced: false, googleEventId: null };
+      return d;
+    });
+
+    const localIds = new Set(duties.map(d => d.googleEventId).filter(Boolean));
+    const imported = allEvents
+      .filter(e => e.start?.dateTime && !localIds.has(e.id))
+      .map(e => parseEventToDuty(e, dutyTypes, attributes, nightMode))
+      .filter(Boolean);
+
+    return [...updated, ...imported];
+  } catch (err) { console.error('Reconcile failed:', err); return duties; }
+}
+
 const getCycleDayForDate = (dateStr, cycleConfig) => {
   if (!cycleConfig) return null;
   const { startDate, startDayNum } = cycleConfig;
-  const start = parseLocalDate(startDate);
-  const target = parseLocalDate(dateStr);
-  const diffMs = target - start;
-  const diffDays = Math.round(diffMs / 86400000);
-  // Cycle position of startDate is (startDayNum - 1), so adjust offset
-  const cyclePos = ((diffDays + (startDayNum - 1)) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
-  return cyclePos < WORKING_DAYS_PER_CYCLE ? cyclePos + 1 : null;
+  const diffDays = Math.round((parseLocalDate(dateStr) - parseLocalDate(startDate)) / 86400000);
+  const pos = ((diffDays + startDayNum - 1) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
+  return pos < WORKING_DAYS_PER_CYCLE ? pos + 1 : null;
 };
 
 // ===== STORAGE =====
 
-const loadData = () => {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; }
-  catch { return null; }
-};
-const saveData = (d) => {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
-};
+const loadData = () => { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; } };
+const saveData = d  => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
 
-// ===== GOOGLE API STATE =====
+// ===== GOOGLE API =====
 
 const waitForGAPI = () => new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error('Google API load timeout')), 12000);
@@ -867,33 +1053,26 @@ function Modal({ title, onClose, children, width = '500px' }) {
 
 // ===== DUTY MODAL =====
 
-const BLANK_FORM = {
-  typeId: null, customName: '', startTime: '', endTime: '',
-  isOvertime: false, isFlexi: false, isSwapped: false, swappedWith: '', isUCA: false, notes: ''
-};
-
-function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose }) {
-  // CREATE mode: no existing duty — type grid only, clicking a standard type = instant save
-  // EDIT mode:   has existing duty — full form with save button
+function DutyModal({ date, existingDuty, dutyTypes, attributes, onSave, onDelete, onClose }) {
   const isEdit = !!existingDuty;
 
+  const BLANK = { typeId: null, customName: '', startTime: '', endTime: '', attrs: {}, notes: '' };
+
   const [form, setForm] = useState(isEdit ? {
-    typeId: existingDuty.typeId || 'custom',
+    typeId:     existingDuty.typeId || 'custom',
     customName: existingDuty.customName || '',
-    startTime: existingDuty.startTime,
-    endTime: existingDuty.endTime,
-    isOvertime: existingDuty.isOvertime,
-    isFlexi: existingDuty.isFlexi,
-    isSwapped: existingDuty.isSwapped,
-    swappedWith: existingDuty.swappedWith || '',
-    isUCA: existingDuty.isUCA,
-    notes: existingDuty.notes || ''
-  } : BLANK_FORM);
+    startTime:  existingDuty.startTime,
+    endTime:    existingDuty.endTime,
+    attrs:      { ...(existingDuty.attrs || {}) },
+    notes:      existingDuty.notes || '',
+  } : BLANK);
 
   const up = patch => setForm(f => ({ ...f, ...patch }));
+  const setAttr = (id, val) => up({ attrs: { ...form.attrs, [id]: val } });
 
-  const dateObj = parseLocalDate(date);
-  const displayDate = dateObj.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const displayDate = parseLocalDate(date).toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+  });
 
   const buildDuty = (f, baseId) => {
     const type = dutyTypes.find(t => t.id === f.typeId);
@@ -901,31 +1080,22 @@ function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose })
       ? isOvernightTimes(f.startTime, f.endTime)
       : (type?.overnight || false);
     return {
-      id: baseId || uid(),
-      date,
-      typeId: f.typeId === 'custom' ? null : f.typeId,
+      id: baseId || uid(), date,
+      typeId:     f.typeId === 'custom' ? null : f.typeId,
       customName: f.typeId === 'custom' ? f.customName : '',
       startTime: f.startTime, endTime: f.endTime,
-      overnight, isOvertime: f.isOvertime,
-      isFlexi: f.isFlexi, isSwapped: f.isSwapped,
-      swappedWith: f.swappedWith, notes: f.notes,
-      isUCA: f.isUCA, synced: false,
-      googleEventId: existingDuty?.googleEventId || null
+      overnight, attrs: f.attrs, notes: f.notes,
+      synced: false, googleEventId: existingDuty?.googleEventId || null,
     };
   };
 
-  // Clicking a standard type in CREATE mode: instant save & close
-  const handleTypeClick = (type) => {
+  const handleTypeClick = type => {
     if (!isEdit) {
-      onSave(buildDuty({ ...BLANK_FORM, typeId: type.id, startTime: type.startTime, endTime: type.endTime }, uid()));
+      onSave(buildDuty({ ...BLANK, typeId: type.id, startTime: type.startTime, endTime: type.endTime }, uid()));
       onClose();
     } else {
       up({ typeId: type.id, startTime: type.startTime, endTime: type.endTime });
     }
-  };
-
-  const handleCustomClick = () => {
-    up({ typeId: 'custom', startTime: form.startTime || '09:00', endTime: form.endTime || '17:00' });
   };
 
   const handleSave = () => {
@@ -935,41 +1105,32 @@ function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose })
     onClose();
   };
 
-  const canSave = form.typeId && form.startTime && form.endTime &&
-    (form.typeId !== 'custom' || form.customName.trim());
-
-  // In CREATE mode with 'custom' selected, show the full custom form + save button
-  const showFullForm = isEdit || form.typeId === 'custom';
+  const canSave   = form.typeId && form.startTime && form.endTime && (form.typeId !== 'custom' || form.customName.trim());
+  const showFull  = isEdit || form.typeId === 'custom';
 
   return (
     <Modal title={displayDate} onClose={onClose} width="480px">
       <div className="modal-body">
-        {!isEdit && !form.typeId && (
-          <p className="modal-desc">Select a duty type — standard duties are saved instantly.</p>
-        )}
+        {!isEdit && !form.typeId && <p className="modal-desc">Select a duty type — standard duties are saved instantly.</p>}
 
         <div className="form-section">
-          {showFullForm && <label className="form-label">Duty Type</label>}
+          {showFull && <label className="form-label">Duty Type</label>}
           <div className="type-grid">
             {dutyTypes.map(type => (
-              <button key={type.id}
-                className={`type-btn ${form.typeId === type.id ? 'selected' : ''}`}
-                style={{ '--type-color': type.color }}
-                onClick={() => handleTypeClick(type)}>
-                {type.name}
-                <span className="type-time">{type.startTime}–{type.endTime}</span>
+              <button key={type.id} className={`type-btn ${form.typeId===type.id?'selected':''}`}
+                style={{ '--type-color': type.color }} onClick={() => handleTypeClick(type)}>
+                {type.name}<span className="type-time">{type.startTime}–{type.endTime}</span>
               </button>
             ))}
-            <button className={`type-btn ${form.typeId === 'custom' ? 'selected' : ''}`}
+            <button className={`type-btn ${form.typeId==='custom'?'selected':''}`}
               style={{ '--type-color': '#2ECC9A' }}
-              onClick={handleCustomClick}>
-              Custom
-              <span className="type-time">Set times</span>
+              onClick={() => up({ typeId:'custom', startTime: form.startTime||'09:00', endTime: form.endTime||'17:00' })}>
+              Custom<span className="type-time">Set times</span>
             </button>
           </div>
         </div>
 
-        {showFullForm && form.typeId && (
+        {showFull && form.typeId && (
           <>
             {form.typeId === 'custom' && (
               <div className="form-section">
@@ -982,32 +1143,42 @@ function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose })
             <div className="form-row">
               <div className="form-section">
                 <label className="form-label">Start Time</label>
-                <input className="form-input" type="time" value={form.startTime}
-                  onChange={e => up({ startTime: e.target.value })} />
+                <input className="form-input" type="time" value={form.startTime} onChange={e => up({ startTime: e.target.value })} />
               </div>
               <div className="form-section">
                 <label className="form-label">End Time</label>
-                <input className="form-input" type="time" value={form.endTime}
-                  onChange={e => up({ endTime: e.target.value })} />
+                <input className="form-input" type="time" value={form.endTime} onChange={e => up({ endTime: e.target.value })} />
               </div>
             </div>
 
-            <div className="form-section">
-              <label className="form-label">Attributes</label>
-              <div className="checkbox-group">
-                {[['isOvertime','OT'],['isFlexi','Flexi'],['isSwapped','Swap'],['isUCA','UCA']].map(([k,label]) => (
-                  <label key={k} className="checkbox-label">
-                    <input type="checkbox" checked={form[k]} onChange={e => up({ [k]: e.target.checked })} />
-                    <span>{label}</span>
-                  </label>
-                ))}
+            {attributes.length > 0 && (
+              <div className="form-section">
+                <label className="form-label">Attributes</label>
+                <div className="checkbox-group">
+                  {attributes.map(attr => {
+                    const val = form.attrs[attr.id];
+                    const checked = attr.hasFreeText ? (val !== undefined && val !== false) : !!val;
+                    return (
+                      <label key={attr.id} className="checkbox-label">
+                        <input type="checkbox" checked={checked}
+                          onChange={e => setAttr(attr.id, e.target.checked ? (attr.hasFreeText ? '' : true) : false)} />
+                        <span>{attr.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {attributes.filter(a => a.hasFreeText).map(attr => {
+                  const val = form.attrs[attr.id];
+                  if (val === false || val === undefined) return null;
+                  return (
+                    <input key={attr.id} className="form-input" style={{ marginTop:'8px' }} type="text"
+                      placeholder={attr.freeTextLabel || attr.name}
+                      value={typeof val === 'string' ? val : ''}
+                      onChange={e => setAttr(attr.id, e.target.value)} />
+                  );
+                })}
               </div>
-              {form.isSwapped && (
-                <input className="form-input" style={{ marginTop: '8px' }} type="text"
-                  placeholder="Name of person swapped with"
-                  value={form.swappedWith} onChange={e => up({ swappedWith: e.target.value })} />
-              )}
-            </div>
+            )}
 
             <div className="form-section">
               <label className="form-label">Notes</label>
@@ -1017,10 +1188,9 @@ function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose })
 
             <div className="modal-footer">
               {isEdit && (
-                <button className="btn-icon btn-danger" style={{ marginRight:'auto', width:'auto', padding:'6px 12px', fontSize:'13px' }}
-                  onClick={() => { onDelete(existingDuty.id); onClose(); }}>
-                  Delete
-                </button>
+                <button className="btn-icon btn-danger"
+                  style={{ marginRight:'auto', width:'auto', padding:'6px 12px', fontSize:'13px' }}
+                  onClick={() => { onDelete(existingDuty.id); onClose(); }}>Delete</button>
               )}
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn-primary" onClick={handleSave} disabled={!canSave}>Save</button>
@@ -1036,46 +1206,29 @@ function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose })
 
 function CycleModal({ onGenerate, onClose }) {
   const [startDate, setStartDate] = useState(fmtDate(addDays(new Date(), 1)));
-  const [startDay, setStartDay]   = useState(1);
-  const [busy, setBusy]           = useState(false);
-
-  const handle = async () => {
-    setBusy(true);
-    await onGenerate({ startDate, startDayNum: startDay });
-    setBusy(false);
-  };
-
+  const [startDay,  setStartDay]  = useState(1);
+  const [busy,      setBusy]      = useState(false);
+  const handle = async () => { setBusy(true); await onGenerate({ startDate, startDayNum: startDay }); setBusy(false); };
   return (
     <Modal title="Generate Shift Cycle" onClose={onClose} width="420px">
       <div className="modal-body">
-        <p className="modal-desc">
-          Creates placeholder duties for 5-on / 3-off twist, projected into the future.
-          These are later removed when rostered duties are selected.
-        </p>
-
+        <p className="modal-desc">Creates placeholder duties for a 5-on / 3-off twist, projected into the future. These are removed when rostered duties are selected.</p>
         <div className="form-section">
           <label className="form-label">First Working Day of Next Twist</label>
-          <input className="form-input" type="date" value={startDate}
-            onChange={e => setStartDate(e.target.value)} />
+          <input className="form-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
         </div>
-
         <div className="form-section">
           <label className="form-label">Which cycle day does this date fall on?</label>
           <div className="day-num-grid">
             {[1,2,3,4,5].map(n => (
-              <button key={n} className={`day-num-btn ${startDay === n ? 'selected' : ''}`}
-                onClick={() => setStartDay(n)}>
-                Day {n}
-              </button>
+              <button key={n} className={`day-num-btn ${startDay===n?'selected':''}`}
+                onClick={() => setStartDay(n)}>Day {n}</button>
             ))}
           </div>
         </div>
-
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={handle} disabled={busy}>
-            {busy ? 'Creating events…' : 'Generate in Calendar'}
-          </button>
+          <button className="btn-primary" onClick={handle} disabled={busy}>{busy?'Creating events…':'Generate in Calendar'}</button>
         </div>
       </div>
     </Modal>
@@ -1086,52 +1239,76 @@ function CycleModal({ onGenerate, onClose }) {
 
 const PALETTE = ['#FF9B3D','#4E9EFF','#9D79F2','#5B7FE0','#2ECC9A','#F87171','#FBBF24','#60A5FA','#FB7185','#34D399'];
 
-function SettingsModal({ dutyTypes, clientId, onSave, onClose }) {
-  const [types, setTypes]   = useState(dutyTypes);
-  const [cid, setCid]       = useState(clientId);
-  const [showAdd, setShowAdd] = useState(false);
-  const [newT, setNewT]     = useState({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF', overnight:false });
-  const upNew = p => setNewT(f => ({ ...f, ...p }));
+// ── Profile Edit (sub-modal) ──
+function ProfileEditModal({ profile, canDelete, onSave, onDelete, onClose }) {
+  const [name,       setName]       = useState(profile.name);
+  const [dutyTypes,  setDutyTypes]  = useState([...profile.dutyTypes]);
+  const [attributes, setAttributes] = useState([...(profile.attributes||[])]);
+  const [showAddType, setShowAddType] = useState(false);
+  const [showAddAttr, setShowAddAttr] = useState(false);
+  const [confirmDel,  setConfirmDel] = useState(false);
+  const [newT, setNewT] = useState({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF' });
+  const [newA, setNewA] = useState({ name:'', hasFreeText:false, freeTextLabel:'' });
+  const upNewT = p => setNewT(f => ({ ...f, ...p }));
+  const upNewA = p => setNewA(f => ({ ...f, ...p }));
 
   const addType = () => {
     if (!newT.name.trim()) return;
-    setTypes(prev => [...prev, { ...newT, id: uid() }]);
-    setNewT({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF', overnight:false });
-    setShowAdd(false);
+    const overnight = isOvernightTimes(newT.startTime, newT.endTime);
+    setDutyTypes(prev => [...prev, { ...newT, overnight, id: uid() }]);
+    setNewT({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF' });
+    setShowAddType(false);
+  };
+
+  const addAttr = () => {
+    if (!newA.name.trim()) return;
+    const attr = { id: uid(), name: newA.name.trim(), hasFreeText: newA.hasFreeText };
+    if (newA.hasFreeText && newA.freeTextLabel.trim()) attr.freeTextLabel = newA.freeTextLabel.trim();
+    setAttributes(prev => [...prev, attr]);
+    setNewA({ name:'', hasFreeText:false, freeTextLabel:'' });
+    setShowAddAttr(false);
   };
 
   return (
-    <Modal title="Settings" onClose={onClose} width="600px">
+    <Modal title={`Edit Profile — ${profile.name}`} onClose={onClose} width="600px">
       <div className="modal-body">
 
+        {/* NAME */}
+        <div className="settings-section">
+          <h3 className="settings-heading">Profile Name</h3>
+          <input className="form-input" type="text" value={name} onChange={e => setName(e.target.value)} />
+        </div>
+
+        {/* DUTY TYPES */}
         <div className="settings-section">
           <h3 className="settings-heading">Duty Types</h3>
           <div className="duty-types-list">
-            {types.map(t => (
+            {dutyTypes.map(t => (
               <div key={t.id} className="duty-type-row">
                 <span className="type-color-dot" style={{ background: t.color }} />
                 <span className="type-row-name">{t.name}</span>
                 <span className="type-row-time">{t.startTime} – {t.endTime}</span>
                 {t.overnight && <span className="type-badge">overnight</span>}
-                <button className="btn-icon btn-danger" onClick={() => setTypes(prev => prev.filter(x => x.id !== t.id))}>×</button>
+                <button className="btn-icon btn-danger"
+                  onClick={() => setDutyTypes(prev => prev.filter(x => x.id !== t.id))}>×</button>
               </div>
             ))}
           </div>
-
-          {showAdd ? (
+          {showAddType ? (
             <div className="add-type-form">
               <div className="form-row">
                 <div className="form-section" style={{ flex:2 }}>
                   <label className="form-label">Name</label>
-                  <input className="form-input" type="text" placeholder="e.g. Standby" value={newT.name} onChange={e => upNew({ name: e.target.value })} autoFocus />
+                  <input className="form-input" type="text" placeholder="e.g. Standby"
+                    value={newT.name} onChange={e => upNewT({ name: e.target.value })} autoFocus />
                 </div>
                 <div className="form-section">
                   <label className="form-label">Start</label>
-                  <input className="form-input" type="time" value={newT.startTime} onChange={e => upNew({ startTime: e.target.value })} />
+                  <input className="form-input" type="time" value={newT.startTime} onChange={e => upNewT({ startTime: e.target.value })} />
                 </div>
                 <div className="form-section">
                   <label className="form-label">End</label>
-                  <input className="form-input" type="time" value={newT.endTime} onChange={e => upNew({ endTime: e.target.value })} />
+                  <input className="form-input" type="time" value={newT.endTime} onChange={e => upNewT({ endTime: e.target.value })} />
                 </div>
               </div>
               <div className="form-row" style={{ alignItems:'flex-end', gap:'14px' }}>
@@ -1140,25 +1317,188 @@ function SettingsModal({ dutyTypes, clientId, onSave, onClose }) {
                   <div className="color-picker">
                     {PALETTE.map(c => (
                       <button key={c} className={`color-dot ${newT.color===c?'selected':''}`}
-                        style={{ background:c }} onClick={() => upNew({ color:c })} />
+                        style={{ background:c }} onClick={() => upNewT({ color:c })} />
                     ))}
                   </div>
                 </div>
-                <label className="checkbox-label" style={{ flexShrink:0 }}>
-                  <input type="checkbox" checked={newT.overnight} onChange={e => upNew({ overnight: e.target.checked })} />
-                  <span>Overnight</span>
-                </label>
+
               </div>
               <div className="modal-footer" style={{ marginTop:0 }}>
-                <button className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+                <button className="btn-secondary" onClick={() => setShowAddType(false)}>Cancel</button>
                 <button className="btn-primary" onClick={addType}>Add Type</button>
               </div>
             </div>
           ) : (
-            <button className="btn-secondary btn-full" onClick={() => setShowAdd(true)}>+ Add Duty Type</button>
+            <button className="btn-secondary btn-full" onClick={() => setShowAddType(true)}>+ Add Duty Type</button>
           )}
         </div>
 
+        {/* ATTRIBUTES */}
+        <div className="settings-section">
+          <h3 className="settings-heading">Attributes</h3>
+          <div className="duty-types-list">
+            {attributes.map(a => (
+              <div key={a.id} className="duty-type-row">
+                <span className="type-row-name">{a.name}</span>
+                {a.hasFreeText && <span className="type-badge">free text{a.freeTextLabel ? ` — ${a.freeTextLabel}` : ''}</span>}
+                <button className="btn-icon btn-danger"
+                  onClick={() => setAttributes(prev => prev.filter(x => x.id !== a.id))}>×</button>
+              </div>
+            ))}
+          </div>
+          {showAddAttr ? (
+            <div className="add-type-form">
+              <div className="form-row">
+                <div className="form-section" style={{ flex:2 }}>
+                  <label className="form-label">Name</label>
+                  <input className="form-input" type="text" placeholder="e.g. UCA"
+                    value={newA.name} onChange={e => upNewA({ name: e.target.value })} autoFocus />
+                </div>
+                <div className="form-section" style={{ justifyContent:'flex-end', paddingBottom:'4px' }}>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={newA.hasFreeText} onChange={e => upNewA({ hasFreeText: e.target.checked })} />
+                    <span>Free text</span>
+                  </label>
+                </div>
+              </div>
+              {newA.hasFreeText && (
+                <div className="form-section">
+                  <label className="form-label">Field label (optional)</label>
+                  <input className="form-input" type="text" placeholder="e.g. Swapped with"
+                    value={newA.freeTextLabel} onChange={e => upNewA({ freeTextLabel: e.target.value })} />
+                </div>
+              )}
+              <div className="modal-footer" style={{ marginTop:0 }}>
+                <button className="btn-secondary" onClick={() => setShowAddAttr(false)}>Cancel</button>
+                <button className="btn-primary" onClick={addAttr}>Add Attribute</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-secondary btn-full" onClick={() => setShowAddAttr(true)}>+ Add Attribute</button>
+          )}
+        </div>
+
+        {/* DANGER ZONE */}
+        {canDelete && (
+          <div className="settings-section">
+            <h3 className="settings-heading" style={{ color:'var(--accent)' }}>Danger Zone</h3>
+            {confirmDel ? (
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                <span style={{ fontSize:'13px', color:'var(--text-dim)' }}>Delete this profile?</span>
+                <button className="btn-danger-outline" onClick={onDelete}>Yes, delete</button>
+                <button className="btn-secondary" onClick={() => setConfirmDel(false)}>Cancel</button>
+              </div>
+            ) : (
+              <button className="btn-danger-outline" onClick={() => setConfirmDel(true)}>Delete Profile</button>
+            )}
+          </div>
+        )}
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary"
+            onClick={() => { onSave({ ...profile, name: name.trim() || profile.name, dutyTypes, attributes }); onClose(); }}>
+            Save Profile
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Main Settings ──
+function SettingsModal({ profiles, activeProfileId, nightMode, clientId, onSave, onClose }) {
+  const [localProfiles,  setLocalProfiles]  = useState(profiles.map(p => ({ ...p, dutyTypes:[...p.dutyTypes], attributes:[...(p.attributes||[])] })));
+  const [localActiveId,  setLocalActiveId]  = useState(activeProfileId);
+  const [localNightMode, setLocalNightMode] = useState(nightMode);
+  const [cid,            setCid]            = useState(clientId);
+  const [editingProfile, setEditingProfile] = useState(null); // profile object being edited
+  const [addingProfile,  setAddingProfile]  = useState(false);
+  const [newProfileName, setNewProfileName] = useState('');
+
+  const addProfile = () => {
+    if (!newProfileName.trim()) return;
+    const p = { id: uid(), name: newProfileName.trim(), dutyTypes:[], attributes:[] };
+    setLocalProfiles(prev => [...prev, p]);
+    setLocalActiveId(p.id);
+    setNewProfileName('');
+    setAddingProfile(false);
+    setEditingProfile(p); // immediately open editor for the new profile
+  };
+
+  const handleSaveProfile = updated => {
+    setLocalProfiles(prev => prev.map(p => p.id === updated.id ? updated : p));
+  };
+
+  const handleDeleteProfile = id => {
+    const remaining = localProfiles.filter(p => p.id !== id);
+    setLocalProfiles(remaining);
+    if (localActiveId === id) setLocalActiveId(remaining[0]?.id);
+    setEditingProfile(null);
+  };
+
+  // If editing a profile, show that modal on top
+  if (editingProfile) {
+    const current = localProfiles.find(p => p.id === editingProfile.id) || editingProfile;
+    return (
+      <ProfileEditModal
+        profile={current}
+        canDelete={localProfiles.length > 1}
+        onSave={handleSaveProfile}
+        onDelete={() => handleDeleteProfile(current.id)}
+        onClose={() => setEditingProfile(null)}
+      />
+    );
+  }
+
+  const activeProfile = localProfiles.find(p => p.id === localActiveId) || localProfiles[0];
+
+  return (
+    <Modal title="Settings" onClose={onClose} width="520px">
+      <div className="modal-body">
+
+        {/* PROFILE */}
+        <div className="settings-section">
+          <h3 className="settings-heading">Profile</h3>
+          <div className="profile-select-row">
+            <select className="form-input profile-select" value={localActiveId}
+              onChange={e => setLocalActiveId(e.target.value)}>
+              {localProfiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <button className="btn-secondary" onClick={() => setEditingProfile(activeProfile)}>Edit Profile</button>
+          </div>
+          {addingProfile ? (
+            <div style={{ display:'flex', gap:'8px', alignItems:'center', marginTop:'10px' }}>
+              <input className="form-input" style={{ flex:1 }} placeholder="New profile name" autoFocus
+                value={newProfileName} onChange={e => setNewProfileName(e.target.value)}
+                onKeyDown={e => e.key==='Enter' && addProfile()} />
+              <button className="btn-primary" onClick={addProfile}>Add</button>
+              <button className="btn-secondary" onClick={() => setAddingProfile(false)}>Cancel</button>
+            </div>
+          ) : (
+            <button className="btn-secondary btn-full" style={{ marginTop:'10px' }}
+              onClick={() => setAddingProfile(true)}>+ New Profile</button>
+          )}
+        </div>
+
+        {/* NIGHT DUTY CONVENTION */}
+        <div className="settings-section">
+          <h3 className="settings-heading">Night Duty Convention</h3>
+          <p className="settings-desc">When an overnight duty is shown on a date:</p>
+          <div className="night-mode-opts">
+            {[
+              ['endDate',   'Duty <strong>ends</strong> on the <strong>morning</strong> of the date shown'],
+              ['startDate', 'Duty <strong>starts</strong> on the <strong>night</strong> of the date shown'],
+            ].map(([val, label]) => (
+              <label key={val} className="checkbox-label">
+                <input type="radio" name="nightMode" checked={localNightMode===val} onChange={() => setLocalNightMode(val)} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* GOOGLE CALENDAR */}
         <div className="settings-section">
           <h3 className="settings-heading">Google Calendar — OAuth Setup</h3>
           <div className="setup-instructions">
@@ -1167,26 +1507,23 @@ function SettingsModal({ dutyTypes, clientId, onSave, onClose }) {
               <li>Enable the <strong>Google Calendar API</strong></li>
               <li>Go to <strong>Credentials</strong> → Create Credentials → OAuth 2.0 Client ID</li>
               <li>Application type: <strong>Web application</strong></li>
-              <li>Add the URL you serve this file from as an <strong>Authorised JavaScript origin</strong><br/>
-                  (e.g. <code>http://localhost:8080</code> for local use)</li>
+              <li>Add your site URL as an <strong>Authorised JavaScript origin</strong></li>
               <li>Copy the Client ID below</li>
             </ol>
           </div>
           <div className="form-section">
             <label className="form-label">Client ID</label>
-            <input className="form-input" type="text"
-              placeholder="xxxxxxxxxx.apps.googleusercontent.com"
+            <input className="form-input" type="text" placeholder="xxxxxxxxxx.apps.googleusercontent.com"
               value={cid} onChange={e => setCid(e.target.value)} />
           </div>
-          <p className="settings-desc" style={{ fontSize:'11px' }}>
-            💡 Serve this file with a simple server:<br/>
-            <code>npx serve .</code> or <code>python3 -m http.server 8080</code>
-          </p>
         </div>
 
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={() => onSave({ dutyTypes: types, clientId: cid })}>Save Settings</button>
+          <button className="btn-primary" onClick={() => onSave({
+            profiles: localProfiles, activeProfileId: localActiveId,
+            nightMode: localNightMode, clientId: cid
+          })}>Save Settings</button>
         </div>
       </div>
     </Modal>
@@ -1195,39 +1532,32 @@ function SettingsModal({ dutyTypes, clientId, onSave, onClose }) {
 
 // ===== CALENDAR GRID =====
 
-function CalendarGrid({ year, month, duties, dutyTypes, cycleConfig, todayStr, onDayClick }) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDOW    = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+function CalendarGrid({ year, month, duties, dutyTypes, attributes, cycleConfig, nightMode, todayStr, onDayClick }) {
+  const daysInMonth    = new Date(year, month+1, 0).getDate();
+  const firstDOW       = (new Date(year, month, 1).getDay() + 6) % 7;
   const prevMonthTotal = new Date(year, month, 0).getDate();
-
   const cells = [];
-  for (let i = firstDOW - 1; i >= 0; i--)
-    cells.push({ date: fmtDate(new Date(year, month-1, prevMonthTotal - i)), cur: false });
+  for (let i = firstDOW-1; i >= 0; i--)
+    cells.push({ date: fmtDate(new Date(year, month-1, prevMonthTotal-i)), cur: false });
   for (let d = 1; d <= daysInMonth; d++)
     cells.push({ date: fmtDate(new Date(year, month, d)), cur: true });
   while (cells.length < 42)
-    cells.push({ date: fmtDate(new Date(year, month+1, cells.length - daysInMonth - firstDOW + 1)), cur: false });
+    cells.push({ date: fmtDate(new Date(year, month+1, cells.length-daysInMonth-firstDOW+1)), cur: false });
 
   return (
     <div className="calendar">
       <div className="calendar-header">
-        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
-          <div key={d} className="cal-header-cell">{d}</div>
-        ))}
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => <div key={d} className="cal-header-cell">{d}</div>)}
       </div>
       <div className="calendar-grid">
         {cells.map(({ date, cur }) => {
-          const duty = duties.find(d => d.date === date) || null;
-          const dow = parseLocalDate(date).getDay();
+          const duty    = duties.find(d => d.date === date) || null;
+          const dow     = parseLocalDate(date).getDay();
           const weekend = dow === 0 || dow === 6;
-          const type = duty ? dutyTypes.find(t => t.id === duty.typeId) : null;
-          const color = type?.color || '#2ECC9A';
-          const attrBits = duty ? [
-            duty.isOvertime && 'OT',
-            duty.isFlexi    && 'Flexi',
-            duty.isSwapped  && 'Swap',
-            duty.isUCA      && 'UCA',
-          ].filter(Boolean) : [];
+          const type    = duty ? dutyTypes.find(t => t.id === duty.typeId) : null;
+          const color   = type?.color || '#2ECC9A';
+          const attrBits = duty ? buildAttrBits(duty, attributes) : [];
+          const overnightTag = duty?.overnight ? (nightMode==='startDate' ? ' →+1' : ' ←-1') : '';
           const cycleDay = (!duty && cur) ? getCycleDayForDate(date, cycleConfig) : null;
           return (
             <div key={date}
@@ -1238,7 +1568,7 @@ function CalendarGrid({ year, month, duties, dutyTypes, cycleConfig, todayStr, o
                 {duty && (
                   <div className="duty-chip" style={{ '--chip-color': color }}>
                     <span className="chip-name">{type ? type.name : (duty.customName || 'Custom')}</span>
-                    <span className="chip-time">{duty.startTime}–{duty.endTime}{duty.overnight?' (+1)':''}</span>
+                    <span className="chip-time">{duty.startTime}–{duty.endTime}{overnightTag}</span>
                     {attrBits.length > 0 && <span className="chip-attrs">{attrBits.join(' · ')}</span>}
                   </div>
                 )}
@@ -1260,191 +1590,217 @@ function CalendarGrid({ year, month, duties, dutyTypes, cycleConfig, todayStr, o
 // ===== MAIN APP =====
 
 function App() {
-  const saved     = loadData();
-  const today     = new Date();
-  const todayStr  = fmtDate(today);
+  const saved    = loadData();
+  const today    = new Date();
+  const todayStr = fmtDate(today);
 
-  const [duties,     setDuties]     = useState(saved?.duties     || []);
-  const [dutyTypes,  setDutyTypes]  = useState(saved?.dutyTypes  || DEFAULT_DUTY_TYPES);
-  const [clientId,   setClientId]   = useState(saved?.clientId   || '');
+  // Migration: wrap old dutyTypes into DATCC profile if needed
+  const initProfiles = (() => {
+    if (saved?.profiles) return saved.profiles.map(p => ({ ...p, attributes: p.attributes || [] }));
+    if (saved?.dutyTypes) return [{ id:'datcc', name:'DATCC', dutyTypes: saved.dutyTypes, attributes: DATCC_ATTRS }, ...DEFAULT_PROFILES.slice(1)];
+    return DEFAULT_PROFILES;
+  })();
+  const initActiveId = saved?.activeProfileId || initProfiles[0]?.id || 'datcc';
+  // Migration: duties to new attrs format
+  const initDuties = (saved?.duties || []).map(migrateDuty);
+
+  const [profiles,           setProfiles]           = useState(initProfiles);
+  const [activeProfileId,    setActiveProfileId]    = useState(initActiveId);
+  const [nightMode,          setNightMode]          = useState(saved?.nightMode || 'endDate');
+  const [duties,             setDuties]             = useState(initDuties);
+  const [clientId,           setClientId]           = useState(saved?.clientId || '');
   const [selectedCalendarId, setSelectedCalendarId] = useState(saved?.selectedCalendarId || 'primary');
-  const [cycleConfig, setCycleConfig] = useState(saved?.cycleConfig || null);
-  const [calendars,  setCalendars]  = useState([]);
-  const [curDate,    setCurDate]    = useState(today);
-  const [modalDate,  setModalDate]  = useState(null);
-  const [showCycle,  setShowCycle]  = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const [signedIn,   setSignedIn]   = useState(false);
-  const [syncStatus, setSyncStatus] = useState(null);
-  const [syncMsg,    setSyncMsg]    = useState('');
-  const [apiReady,   setApiReady]   = useState(false);
+  const [cycleConfig,        setCycleConfig]        = useState(saved?.cycleConfig || null);
+  const [calendars,          setCalendars]          = useState([]);
+  const [curDate,            setCurDate]            = useState(today);
+  const [modalDate,          setModalDate]          = useState(null);
+  const [showCycle,          setShowCycle]          = useState(false);
+  const [showSettings,       setShowSettings]       = useState(false);
+  const [signedIn,           setSignedIn]           = useState(false);
+  const [syncStatus,         setSyncStatus]         = useState(null);
+  const [syncMsg,            setSyncMsg]            = useState('');
+  const [apiReady,           setApiReady]           = useState(false);
 
   const tokenRef      = useRef(null);
   const pendingRef    = useRef(null);
   const calendarIdRef = useRef(selectedCalendarId);
+  const tokenTimerRef = useRef(null);
+  const dutiesRef     = useRef(duties);
+  const nightModeRef  = useRef(nightMode);
+  const profilesRef   = useRef(profiles);
+  const activeIdRef   = useRef(activeProfileId);
 
   const year  = curDate.getFullYear();
   const month = curDate.getMonth();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
 
-  // Persist
-  useEffect(() => { saveData({ duties, dutyTypes, clientId, selectedCalendarId, cycleConfig }); }, [duties, dutyTypes, clientId, selectedCalendarId, cycleConfig]);
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || profiles[0] || { dutyTypes:[], attributes:[] };
+  const dutyTypes  = activeProfile.dutyTypes  || [];
+  const attributes = activeProfile.attributes || [];
+
+  useEffect(() => { dutiesRef.current    = duties;       }, [duties]);
+  useEffect(() => { nightModeRef.current = nightMode;    }, [nightMode]);
   useEffect(() => { calendarIdRef.current = selectedCalendarId; }, [selectedCalendarId]);
+  useEffect(() => { profilesRef.current  = profiles;    }, [profiles]);
+  useEffect(() => { activeIdRef.current  = activeProfileId; }, [activeProfileId]);
 
-  // Init Google APIs when clientId changes
   useEffect(() => {
-    if (!clientId) return;
-    let cancelled = false;
-
-    (async () => {
-      try {
-        await waitForGAPI();
-        if (cancelled) return;
-
-        await new Promise(resolve => gapi.load('client', resolve));
-        await gapi.client.init({
-          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
-        });
-
-        tokenRef.current = google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
-          callback: (resp) => {
-            if (resp.error) { console.error('OAuth error', resp); return; }
-            // Persist token + expiry so we can restore on next page load without any popup
-            const expiry = Date.now() + (resp.expires_in - 60) * 1000; // 60s safety margin
-            localStorage.setItem('atcsm_token', JSON.stringify({ access_token: resp.access_token, expiry }));
-            gapi.client.setToken({ access_token: resp.access_token });
-            setSignedIn(true);
-            fetchCalendars();
-            if (pendingRef.current) { pendingRef.current(); pendingRef.current = null; }
-          },
-        });
-
-        if (!cancelled) {
-          setApiReady(true);
-          // Restore saved token if still valid — no popup, no round-trip to Google
-          try {
-            const saved = JSON.parse(localStorage.getItem('atcsm_token') || 'null');
-            if (saved && saved.expiry > Date.now()) {
-              gapi.client.setToken({ access_token: saved.access_token });
-              setSignedIn(true);
-              fetchCalendars();
-            } else {
-              localStorage.removeItem('atcsm_token');
-            }
-          } catch (e) { localStorage.removeItem('atcsm_token'); }
-        }
-      } catch (err) {
-        console.error('Google API init failed:', err);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [clientId]);
-
-  const ensureSignedIn = (action) => {
-    const token = gapi.client.getToken?.();
-    if (signedIn && token) { action(); return; }
-    pendingRef.current = action;
-    tokenRef.current?.requestAccessToken({ prompt: signedIn ? '' : 'consent' });
-  };
-
-  const fetchCalendars = async () => {
-    try {
-      const resp = await gapi.client.request({ path: 'https://www.googleapis.com/calendar/v3/users/me/calendarList' });
-      const items = resp.result.items || [];
-      const writable = items.filter(c => c.accessRole === 'owner' || c.accessRole === 'writer');
-      setCalendars(writable);
-    } catch (err) {
-      console.error('Failed to fetch calendars:', err);
-    }
-  };
+    saveData({ duties, profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig });
+  }, [duties, profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig]);
 
   const flashStatus = (status, msg, ms = 4000) => {
     setSyncStatus(status); setSyncMsg(msg);
     setTimeout(() => setSyncStatus(null), ms);
   };
 
-  // ── CRUD ──
-  const saveDuty   = (duty) => setDuties(prev => {
-    const i = prev.findIndex(d => d.id === duty.id);
-    return i >= 0 ? prev.map((d,j) => j===i ? duty : d) : [...prev, duty];
-  });
-  const deleteDuty = (id) => setDuties(prev => prev.filter(d => d.id !== id));
+  const doSignOut = message => {
+    try { gapi.client.setToken(null); } catch {}
+    localStorage.removeItem('atcsm_token');
+    if (tokenTimerRef.current) { clearTimeout(tokenTimerRef.current); tokenTimerRef.current = null; }
+    setSignedIn(false); setCalendars([]);
+    if (message) flashStatus('error', message);
+  };
+
+  const applyToken = (accessToken, expiry) => {
+    gapi.client.setToken({ access_token: accessToken });
+    if (tokenTimerRef.current) clearTimeout(tokenTimerRef.current);
+    tokenTimerRef.current = setTimeout(() => doSignOut('Session expired — please sign in again.'), expiry - Date.now());
+  };
+
+  const getActiveAttrs = () => {
+    const ap = profilesRef.current.find(p => p.id === activeIdRef.current) || profilesRef.current[0];
+    return { dutyTypes: ap?.dutyTypes || [], attributes: ap?.attributes || [] };
+  };
+
+  const fetchCalendars = async () => {
+    try {
+      const resp = await gapi.client.request({ path: 'https://www.googleapis.com/calendar/v3/users/me/calendarList' });
+      setCalendars((resp.result.items||[]).filter(c => c.accessRole==='owner' || c.accessRole==='writer'));
+    } catch (err) { console.error('Failed to fetch calendars:', err); }
+  };
+
+  const doReconcile = async calId => {
+    const { dutyTypes: dt, attributes: at } = getActiveAttrs();
+    const reconciled = await reconcileCalendar(calId, dutiesRef.current, nightModeRef.current, dt, at);
+    setDuties(reconciled);
+  };
+
+  // Init Google APIs
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        await waitForGAPI();
+        if (cancelled) return;
+        await new Promise(resolve => gapi.load('client', resolve));
+        await gapi.client.init({ discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'] });
+
+        tokenRef.current = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+          callback: async resp => {
+            if (resp.error) { console.error('OAuth error', resp); return; }
+            const expiry = Date.now() + (resp.expires_in - 60) * 1000;
+            localStorage.setItem('atcsm_token', JSON.stringify({ access_token: resp.access_token, expiry }));
+            applyToken(resp.access_token, expiry);
+            setSignedIn(true);
+            await fetchCalendars();
+            await doReconcile(calendarIdRef.current);
+            if (pendingRef.current) { pendingRef.current(); pendingRef.current = null; }
+          },
+        });
+
+        if (!cancelled) {
+          setApiReady(true);
+          try {
+            const tok = JSON.parse(localStorage.getItem('atcsm_token') || 'null');
+            if (tok && tok.expiry > Date.now()) {
+              applyToken(tok.access_token, tok.expiry);
+              setSignedIn(true);
+              await fetchCalendars();
+              await doReconcile(calendarIdRef.current);
+            } else { localStorage.removeItem('atcsm_token'); }
+          } catch (e) { localStorage.removeItem('atcsm_token'); }
+        }
+      } catch (err) { console.error('Google API init failed:', err); }
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  const ensureSignedIn = action => {
+    const token = gapi.client.getToken?.();
+    if (signedIn && token) { action(); return; }
+    pendingRef.current = action;
+    tokenRef.current?.requestAccessToken({ prompt: '' });
+  };
+
+  const saveDuty   = duty => setDuties(prev => { const i = prev.findIndex(d => d.id===duty.id); return i>=0 ? prev.map((d,j) => j===i?duty:d) : [...prev,duty]; });
+  const deleteDuty = id   => setDuties(prev => prev.filter(d => d.id !== id));
 
   // ── SYNC ──
   const doSync = useCallback(async () => {
     const calId = calendarIdRef.current;
-    const today = fmtDate(new Date());
-    const pendingDuties = duties.filter(d => d.date >= today);
-    if (pendingDuties.length === 0) { flashStatus('error', 'No upcoming duties to sync.'); return; }
-
-    setSyncStatus('syncing'); setSyncMsg(`Syncing ${pendingDuties.length} duties…`);
-
+    const todayFmt = fmtDate(new Date());
+    const pending = duties.filter(d => d.date >= todayFmt);
+    if (pending.length === 0) { flashStatus('error', 'No upcoming duties to sync.'); return; }
+    setSyncStatus('syncing'); setSyncMsg(`Syncing ${pending.length} duties…`);
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     let ok = 0, fail = 0;
     const updatedDuties = [...duties];
 
-    for (const duty of pendingDuties) {
+    for (const duty of pending) {
       try {
-        // If a cycle placeholder event exists for this date, delete that occurrence first
+        // Remove cycle placeholder
         const cycleDay = getCycleDayForDate(duty.date, cycleConfig);
         if (cycleDay) {
           try {
-            const dayStart = duty.date;
-            const dayEnd   = fmtDate(addDays(parseLocalDate(duty.date), 1));
-            const listResp = await gapi.client.calendar.events.list({
-              calendarId: calId,
-              timeMin: `${dayStart}T00:00:00Z`,
-              timeMax: `${dayEnd}T00:00:00Z`,
-              q: `Day ${cycleDay}`,
-              singleEvents: true,
+            const dayEnd = fmtDate(addDays(parseLocalDate(duty.date), 1));
+            const lr = await gapi.client.calendar.events.list({
+              calendarId: calId, timeMin: `${duty.date}T00:00:00Z`, timeMax: `${dayEnd}T00:00:00Z`,
+              q: `Day ${cycleDay}`, singleEvents: true,
             });
-            const matches = (listResp.result.items || []).filter(e => e.summary === `Day ${cycleDay}`);
-            for (const e of matches) {
+            for (const e of (lr.result.items||[]).filter(e => e.summary===`Day ${cycleDay}`))
               await gapi.client.calendar.events.delete({ calendarId: calId, eventId: e.id });
-            }
           } catch (e) { console.warn('Could not remove cycle event:', e); }
         }
 
-        // Overnight duties (e.g. Night on the 25th) start the evening of the 24th
-        // and end on the 25th. The date stored is the END date (the roster date).
-        const startDate = duty.overnight ? fmtDate(addDays(parseLocalDate(duty.date), -1)) : duty.date;
+        const startDate = duty.overnight
+          ? (nightMode==='startDate' ? duty.date : fmtDate(addDays(parseLocalDate(duty.date), -1)))
+          : duty.date;
+        const endDate = duty.overnight
+          ? (nightMode==='startDate' ? fmtDate(addDays(parseLocalDate(duty.date), 1)) : duty.date)
+          : duty.date;
+
         const event = {
-          summary: buildTitle(duty, dutyTypes),
+          summary:     buildTitle(duty, dutyTypes, attributes),
           description: duty.notes || '',
           start: { dateTime: `${startDate}T${duty.startTime}:00`, timeZone: tz },
-          end:   { dateTime: `${duty.date}T${duty.endTime}:00`,   timeZone: tz },
+          end:   { dateTime: `${endDate}T${duty.endTime}:00`,     timeZone: tz },
+          extendedProperties: { private: { source: 'atcsm' } },
         };
 
         let eventId = duty.googleEventId;
         if (eventId) {
-          try {
-            await gapi.client.calendar.events.update({ calendarId: calId, eventId, resource: event });
-          } catch (e) {
-            if (e.status === 404 || e.status === 410) {
-              const r = await gapi.client.calendar.events.insert({ calendarId: calId, resource: event });
-              eventId = r.result.id;
-            } else throw e;
+          try { await gapi.client.calendar.events.update({ calendarId: calId, eventId, resource: event }); }
+          catch (e) {
+            if (e.status===404||e.status===410) { const r=await gapi.client.calendar.events.insert({ calendarId: calId, resource: event }); eventId=r.result.id; }
+            else throw e;
           }
         } else {
           const r = await gapi.client.calendar.events.insert({ calendarId: calId, resource: event });
           eventId = r.result.id;
         }
 
-        const idx = updatedDuties.findIndex(d => d.id === duty.id);
-        if (idx >= 0) updatedDuties[idx] = { ...updatedDuties[idx], googleEventId: eventId, synced: true };
+        const idx = updatedDuties.findIndex(d => d.id===duty.id);
+        if (idx>=0) updatedDuties[idx] = { ...updatedDuties[idx], googleEventId: eventId, synced: true };
         ok++;
-      } catch (err) {
-        console.error('Sync failed for duty:', duty, err);
-        fail++;
-      }
+      } catch (err) { console.error('Sync failed:', duty, err); fail++; }
     }
 
     setDuties(updatedDuties);
-    flashStatus(fail ? 'error' : 'success',
-      fail ? `Synced ${ok}, failed ${fail}.` : `✓ Synced ${ok} duties.`);
-  }, [duties, dutyTypes, cycleConfig]);
+    flashStatus(fail?'error':'success', fail?`Synced ${ok}, failed ${fail}.`:`Synced ${ok} duties.`);
+  }, [duties, dutyTypes, attributes, cycleConfig, nightMode]);
 
   const handleSignIn = () => {
     if (!clientId) { setShowSettings(true); return; }
@@ -1454,68 +1810,37 @@ function App() {
 
   const handleSync = () => {
     if (!clientId) { setShowSettings(true); return; }
-    if (!apiReady) { flashStatus('error', 'Google API not ready yet.'); return; }
     if (!signedIn) { flashStatus('error', 'Please sign in first.'); return; }
     doSync();
   };
 
-  // ── CYCLE GENERATOR ──
   const handleGenerateCycle = async ({ startDate, startDayNum }) => {
     const doGenerate = async () => {
       const calId = calendarIdRef.current;
-      const startObj = parseLocalDate(startDate);
-      // startDayNum (1-5) tells us which cycle position startDate occupies.
-      // For each working day 1-5, calculate its first occurrence relative to startDate,
-      // then create ONE all-day event with RRULE:FREQ=DAILY;INTERVAL=8 (repeats forever).
       setSyncStatus('syncing'); setSyncMsg('Creating recurring cycle events…');
-      let created = 0, fail = 0;
-
-      for (let dayNum = 1; dayNum <= WORKING_DAYS_PER_CYCLE; dayNum++) {
-        // How many days offset from startDate to the first occurrence of this dayNum?
-        let offset = (dayNum - 1) - (startDayNum - 1);
-        // If negative, that day already passed in this cycle — push to next cycle
-        if (offset < 0) offset += CYCLE_LENGTH;
-
-        const firstDate = fmtDate(addDays(startObj, offset));
-        const nextDay   = fmtDate(addDays(parseLocalDate(firstDate), 1));
-
+      let created=0, fail=0;
+      for (let dayNum=1; dayNum<=WORKING_DAYS_PER_CYCLE; dayNum++) {
+        let offset = (dayNum-1)-(startDayNum-1);
+        if (offset<0) offset+=CYCLE_LENGTH;
+        const firstDate = fmtDate(addDays(parseLocalDate(startDate), offset));
         try {
-          await gapi.client.calendar.events.insert({
-            calendarId: calId,
-            resource: {
-              summary: `Day ${dayNum}`,
-              start: { date: firstDate },
-              end:   { date: nextDay },
-              recurrence: ['RRULE:FREQ=DAILY;INTERVAL=8'],
-            }
-          });
+          await gapi.client.calendar.events.insert({ calendarId: calId, resource: {
+            summary: `Day ${dayNum}`, start: { date: firstDate }, end: { date: fmtDate(addDays(parseLocalDate(firstDate), 1)) },
+            recurrence: ['RRULE:FREQ=DAILY;INTERVAL=8'],
+          }});
           created++;
         } catch (err) { console.error(err); fail++; }
       }
-
-      flashStatus(fail ? 'error' : 'success',
-        fail ? `Created ${created}, failed ${fail}.` : `✓ Created ${created} recurring cycle events.`);
+      flashStatus(fail?'error':'success', fail?`Created ${created}, failed ${fail}.`:`Created ${created} recurring cycle events.`);
       setCycleConfig({ startDate, startDayNum });
       setShowCycle(false);
     };
-
     if (!clientId) { setShowSettings(true); return; }
     ensureSignedIn(doGenerate);
   };
 
-  const handleSignOut = () => {
-    const token = gapi.client.getToken?.();
-    if (token?.access_token) {
-      google.accounts.oauth2.revoke(token.access_token, () => {});
-      gapi.client.setToken(null);
-    }
-    localStorage.removeItem('atcsm_token');
-    setSignedIn(false);
-  };
-
   const pendingDutyCount = duties.filter(d => d.date >= todayStr && !d.synced).length;
   const totalDutyCount   = duties.filter(d => d.date >= todayStr).length;
-
   const monthLabel = curDate.toLocaleDateString('en-GB', { month:'long', year:'numeric' }).toUpperCase();
 
   return (
@@ -1523,42 +1848,49 @@ function App() {
       <header className="app-header">
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span className="app-logo"><span className="accent">ATC</span> SHIFT MANAGER</span>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.3</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>{APP_VERSION}</span>
         </div>
 
         <div className="header-center">
           <button className="nav-btn" onClick={() => setCurDate(new Date(year, month-1, 1))}>‹</button>
           <span className="month-label">{monthLabel}</span>
           <button className="nav-btn" onClick={() => setCurDate(new Date(year, month+1, 1))}>›</button>
+          <button
+            className={`nav-btn today-btn ${isCurrentMonth ? 'is-today' : ''}`}
+            onClick={() => setCurDate(today)}
+            title="Go to today">
+            Today
+          </button>
         </div>
 
         <div className="header-right">
           {syncStatus && <span className={`sync-status ${syncStatus}`}>{syncMsg}</span>}
           {signedIn && calendars.length > 0 && (
-            <select className="cal-select"
-              value={selectedCalendarId}
-              onChange={e => {
+            <select className="cal-select" value={selectedCalendarId}
+              onChange={async e => {
                 const newId = e.target.value;
                 setSelectedCalendarId(newId);
-                // Reset sync state — event IDs and synced flags belong to the previous calendar
-                setDuties(prev => prev.map(d => ({ ...d, synced: false, googleEventId: null })));
+                setDuties(prev => prev.map(d => ({ ...d, synced:false, googleEventId:null })));
+                setSyncStatus('syncing'); setSyncMsg('Loading calendar…');
+                const { dutyTypes: dt, attributes: at } = getActiveAttrs();
+                const reconciled = await reconcileCalendar(newId, dutiesRef.current, nightModeRef.current, dt, at);
+                setDuties(reconciled);
+                setSyncStatus(null);
               }}>
-              {calendars.map(c => (
-                <option key={c.id} value={c.id}>{c.summary}</option>
-              ))}
+              {calendars.map(c => <option key={c.id} value={c.id}>{c.summary}</option>)}
             </select>
           )}
           <button className="btn-secondary" onClick={() => setShowCycle(true)}>↻ Cycle</button>
           {!signedIn
             ? <button className="btn-primary" onClick={handleSignIn}>Sign in</button>
-            : pendingDutyCount === 0
+            : pendingDutyCount===0
               ? <span className="btn-synced">✓ All synced</span>
-              : <button className="btn-primary" onClick={handleSync} disabled={syncStatus === 'syncing'}>
-                  {syncStatus === 'syncing' ? 'Syncing…' : `Sync (${pendingDutyCount}/${totalDutyCount})`}
+              : <button className="btn-primary" onClick={handleSync} disabled={syncStatus==='syncing'}>
+                  {syncStatus==='syncing' ? 'Syncing…' : `Sync (${pendingDutyCount}/${totalDutyCount})`}
                 </button>
           }
           <button className="btn-icon-lg" onClick={() => setShowSettings(true)} title="Settings">⚙</button>
-          {signedIn && <button className="btn-secondary btn-sm" onClick={handleSignOut}>Sign out</button>}
+          {signedIn && <button className="btn-secondary btn-sm" onClick={() => doSignOut(null)}>Sign out</button>}
         </div>
       </header>
 
@@ -1570,24 +1902,26 @@ function App() {
           </div>
         )}
         <CalendarGrid year={year} month={month} duties={duties} dutyTypes={dutyTypes}
-          cycleConfig={cycleConfig} todayStr={todayStr} onDayClick={setModalDate} />
+          attributes={attributes} cycleConfig={cycleConfig} nightMode={nightMode}
+          todayStr={todayStr} onDayClick={setModalDate} />
       </main>
 
       {modalDate && (
         <DutyModal date={modalDate}
-          existingDuty={duties.find(d => d.date === modalDate) || null}
-          dutyTypes={dutyTypes}
-          onSave={(duty) => { saveDuty(duty); }}
-          onDelete={(id) => { deleteDuty(id); }}
+          existingDuty={duties.find(d => d.date===modalDate) || null}
+          dutyTypes={dutyTypes} attributes={attributes}
+          onSave={saveDuty} onDelete={deleteDuty}
           onClose={() => setModalDate(null)} />
       )}
 
       {showCycle && <CycleModal onGenerate={handleGenerateCycle} onClose={() => setShowCycle(false)} />}
 
       {showSettings && (
-        <SettingsModal dutyTypes={dutyTypes} clientId={clientId}
-          onSave={({ dutyTypes: dt, clientId: cid }) => {
-            setDutyTypes(dt); setClientId(cid); setShowSettings(false);
+        <SettingsModal profiles={profiles} activeProfileId={activeProfileId}
+          nightMode={nightMode} clientId={clientId}
+          onSave={({ profiles: p, activeProfileId: aid, nightMode: nm, clientId: cid }) => {
+            setProfiles(p); setActiveProfileId(aid); setNightMode(nm); setClientId(cid);
+            setShowSettings(false);
           }}
           onClose={() => setShowSettings(false)} />
       )}
@@ -1596,6 +1930,7 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
 </script>
 </body>
 </html>
