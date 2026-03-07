@@ -1309,14 +1309,11 @@ function App() {
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
           callback: (resp) => {
-            if (resp.error) {
-              // Silent re-auth failed — clear the flag so we don't retry on next load
-              if (resp.error === 'interaction_required' || resp.error === 'login_required' || resp.error === 'access_denied') {
-                localStorage.removeItem('atcsm_consented');
-              }
-              return;
-            }
-            localStorage.setItem('atcsm_consented', '1');
+            if (resp.error) { console.error('OAuth error', resp); return; }
+            // Persist token + expiry so we can restore on next page load without any popup
+            const expiry = Date.now() + (resp.expires_in - 60) * 1000; // 60s safety margin
+            localStorage.setItem('atcsm_token', JSON.stringify({ access_token: resp.access_token, expiry }));
+            gapi.client.setToken({ access_token: resp.access_token });
             setSignedIn(true);
             fetchCalendars();
             if (pendingRef.current) { pendingRef.current(); pendingRef.current = null; }
@@ -1325,11 +1322,17 @@ function App() {
 
         if (!cancelled) {
           setApiReady(true);
-          // Only attempt silent re-auth if user has previously consented.
-          // prompt:'none' guarantees absolutely no popup — fails silently if session expired.
-          if (localStorage.getItem('atcsm_consented')) {
-            tokenRef.current.requestAccessToken({ prompt: 'none' });
-          }
+          // Restore saved token if still valid — no popup, no round-trip to Google
+          try {
+            const saved = JSON.parse(localStorage.getItem('atcsm_token') || 'null');
+            if (saved && saved.expiry > Date.now()) {
+              gapi.client.setToken({ access_token: saved.access_token });
+              setSignedIn(true);
+              fetchCalendars();
+            } else {
+              localStorage.removeItem('atcsm_token');
+            }
+          } catch (e) { localStorage.removeItem('atcsm_token'); }
         }
       } catch (err) {
         console.error('Google API init failed:', err);
@@ -1446,7 +1449,7 @@ function App() {
   const handleSignIn = () => {
     if (!clientId) { setShowSettings(true); return; }
     if (!apiReady) { flashStatus('error', 'Google API not ready yet.'); return; }
-    tokenRef.current?.requestAccessToken({ prompt: 'select_account' });
+    tokenRef.current?.requestAccessToken({ prompt: '' });
   };
 
   const handleSync = () => {
@@ -1506,7 +1509,7 @@ function App() {
       google.accounts.oauth2.revoke(token.access_token, () => {});
       gapi.client.setToken(null);
     }
-    localStorage.removeItem('atcsm_consented');
+    localStorage.removeItem('atcsm_token');
     setSignedIn(false);
   };
 
@@ -1520,7 +1523,7 @@ function App() {
       <header className="app-header">
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span className="app-logo"><span className="accent">ATC</span> SHIFT MANAGER</span>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.2</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.3</span>
         </div>
 
         <div className="header-center">
