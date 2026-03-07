@@ -215,7 +215,7 @@ body {
 
 .chip-name {
   font-family: var(--font-body);
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--chip-color);
   white-space: nowrap;
@@ -226,13 +226,13 @@ body {
 
 .chip-time {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 12px;
   color: color-mix(in srgb, var(--chip-color) 70%, var(--text-muted));
   white-space: nowrap;
 }
 
 .chip-attrs {
-  font-size: 9px;
+  font-size: 12px;
   color: color-mix(in srgb, var(--chip-color) 60%, var(--text-muted));
   white-space: nowrap;
   overflow: hidden;
@@ -256,7 +256,7 @@ body {
 
 .cycle-chip-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
@@ -264,7 +264,7 @@ body {
 }
 
 .cycle-chip-sub {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--text-muted);
   opacity: 0.7;
   white-space: nowrap;
@@ -1282,14 +1282,16 @@ function App() {
   const [syncMsg,    setSyncMsg]    = useState('');
   const [apiReady,   setApiReady]   = useState(false);
 
-  const tokenRef   = useRef(null);
-  const pendingRef = useRef(null);
+  const tokenRef      = useRef(null);
+  const pendingRef    = useRef(null);
+  const calendarIdRef = useRef(selectedCalendarId);
 
   const year  = curDate.getFullYear();
   const month = curDate.getMonth();
 
   // Persist
   useEffect(() => { saveData({ duties, dutyTypes, clientId, selectedCalendarId, cycleConfig }); }, [duties, dutyTypes, clientId, selectedCalendarId, cycleConfig]);
+  useEffect(() => { calendarIdRef.current = selectedCalendarId; }, [selectedCalendarId]);
 
   // Init Google APIs when clientId changes
   useEffect(() => {
@@ -1358,6 +1360,7 @@ function App() {
 
   // ── SYNC ──
   const doSync = useCallback(async () => {
+    const calId = calendarIdRef.current;
     const today = fmtDate(new Date());
     const pendingDuties = duties.filter(d => d.date >= today);
     if (pendingDuties.length === 0) { flashStatus('error', 'No upcoming duties to sync.'); return; }
@@ -1377,7 +1380,7 @@ function App() {
             const dayStart = duty.date;
             const dayEnd   = fmtDate(addDays(parseLocalDate(duty.date), 1));
             const listResp = await gapi.client.calendar.events.list({
-              calendarId: selectedCalendarId,
+              calendarId: calId,
               timeMin: `${dayStart}T00:00:00Z`,
               timeMax: `${dayEnd}T00:00:00Z`,
               q: `Day ${cycleDay}`,
@@ -1385,7 +1388,7 @@ function App() {
             });
             const matches = (listResp.result.items || []).filter(e => e.summary === `Day ${cycleDay}`);
             for (const e of matches) {
-              await gapi.client.calendar.events.delete({ calendarId: selectedCalendarId, eventId: e.id });
+              await gapi.client.calendar.events.delete({ calendarId: calId, eventId: e.id });
             }
           } catch (e) { console.warn('Could not remove cycle event:', e); }
         }
@@ -1403,15 +1406,15 @@ function App() {
         let eventId = duty.googleEventId;
         if (eventId) {
           try {
-            await gapi.client.calendar.events.update({ calendarId: selectedCalendarId, eventId, resource: event });
+            await gapi.client.calendar.events.update({ calendarId: calId, eventId, resource: event });
           } catch (e) {
             if (e.status === 404 || e.status === 410) {
-              const r = await gapi.client.calendar.events.insert({ calendarId: selectedCalendarId, resource: event });
+              const r = await gapi.client.calendar.events.insert({ calendarId: calId, resource: event });
               eventId = r.result.id;
             } else throw e;
           }
         } else {
-          const r = await gapi.client.calendar.events.insert({ calendarId: selectedCalendarId, resource: event });
+          const r = await gapi.client.calendar.events.insert({ calendarId: calId, resource: event });
           eventId = r.result.id;
         }
 
@@ -1427,7 +1430,7 @@ function App() {
     setDuties(updatedDuties);
     flashStatus(fail ? 'error' : 'success',
       fail ? `Synced ${ok}, failed ${fail}.` : `✓ Synced ${ok} duties.`);
-  }, [duties, dutyTypes, selectedCalendarId, cycleConfig]);
+  }, [duties, dutyTypes, cycleConfig]);
 
   const handleSignIn = () => {
     if (!clientId) { setShowSettings(true); return; }
@@ -1445,6 +1448,7 @@ function App() {
   // ── CYCLE GENERATOR ──
   const handleGenerateCycle = async ({ startDate, startDayNum }) => {
     const doGenerate = async () => {
+      const calId = calendarIdRef.current;
       const startObj = parseLocalDate(startDate);
       // startDayNum (1-5) tells us which cycle position startDate occupies.
       // For each working day 1-5, calculate its first occurrence relative to startDate,
@@ -1463,7 +1467,7 @@ function App() {
 
         try {
           await gapi.client.calendar.events.insert({
-            calendarId: selectedCalendarId,
+            calendarId: calId,
             resource: {
               summary: `Day ${dayNum}`,
               start: { date: firstDate },
@@ -1504,6 +1508,7 @@ function App() {
       <header className="app-header">
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span className="app-logo"><span className="accent">ATC</span> SHIFT MANAGER</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.0</span>
         </div>
 
         <div className="header-center">
