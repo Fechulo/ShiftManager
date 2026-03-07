@@ -1,0 +1,1576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATC Shift Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0B0F1A;
+  --surface: #131929;
+  --surface2: #1A2235;
+  --surface3: #202A42;
+  --border: #25334F;
+  --border2: #2E3F61;
+  --accent: #FF5733;
+  --accent2: #4E9EFF;
+  --purple: #9D79F2;
+  --green: #2ECC9A;
+  --text: #E2E8F5;
+  --text-muted: #60718A;
+  --text-dim: #8898B5;
+  --font-head: 'Bebas Neue', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-body: 'Mulish', sans-serif;
+}
+
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+}
+
+#root { display: flex; flex-direction: column; height: 100%; }
+
+/* ── HEADER ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 56px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.app-logo {
+  font-family: var(--font-head);
+  font-size: 22px;
+  letter-spacing: 2px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.app-logo .accent { color: var(--accent); }
+
+.header-center {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-label {
+  font-family: var(--font-head);
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: var(--text);
+  min-width: 200px;
+  text-align: center;
+}
+
+.nav-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+.nav-btn:hover { background: var(--surface3); border-color: var(--border2); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── MAIN ── */
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 20px;
+  gap: 12px;
+}
+
+.setup-banner {
+  background: rgba(255,87,51,0.12);
+  border: 1px solid rgba(255,87,51,0.35);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #FFA080;
+  gap: 12px;
+}
+
+/* ── CALENDAR ── */
+.calendar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.calendar-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.cal-header-cell {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+  text-transform: uppercase;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 3px;
+  flex: 1;
+  min-height: 0;
+}
+
+.day-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+.day-cell:hover {
+  background: var(--surface2);
+  border-color: var(--border2);
+}
+.day-cell:hover .day-add-hint { opacity: 1; }
+
+.day-cell.other-month { opacity: 0.3; pointer-events: none; }
+.day-cell.weekend { background: rgba(78,158,255,0.04); }
+.day-cell.today {
+  border-color: var(--accent);
+  background: rgba(255,87,51,0.07);
+}
+.day-cell.today .day-number { color: var(--accent); }
+
+.day-number {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.day-duties {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.duty-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: color-mix(in srgb, var(--chip-color) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chip-color) 45%, transparent);
+  border-left: 3px solid var(--chip-color);
+  border-radius: 5px;
+  padding: 5px 7px;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+}
+
+.chip-name {
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--chip-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.chip-time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: color-mix(in srgb, var(--chip-color) 70%, var(--text-muted));
+  white-space: nowrap;
+}
+
+.chip-attrs {
+  font-size: 9px;
+  color: color-mix(in srgb, var(--chip-color) 60%, var(--text-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+.cycle-chip {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border2);
+  border-radius: 5px;
+  padding: 5px 7px;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cycle-chip-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+.cycle-chip-sub {
+  font-size: 9px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.day-add-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+/* ── SYNC STATUS ── */
+.sync-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.sync-status.syncing { background: rgba(78,158,255,0.15); color: var(--accent2); }
+.sync-status.success { background: rgba(46,204,154,0.15); color: var(--green); }
+.sync-status.error   { background: rgba(255,87,51,0.15);  color: var(--accent); }
+
+/* ── BUTTONS ── */
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+.btn-primary:hover:not(:disabled) { background: #ff7252; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-synced {
+  background: rgba(46,204,154,0.15);
+  color: var(--green);
+  border: 1px solid rgba(46,204,154,0.4);
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: default;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.btn-secondary:hover { background: var(--surface3); border-color: var(--border2); }
+
+.btn-icon {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--surface3); color: var(--text); }
+.btn-icon.btn-danger:hover { background: rgba(255,87,51,0.2); border-color: rgba(255,87,51,0.4); color: var(--accent); }
+
+.btn-icon-lg {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 34px; height: 34px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.btn-icon-lg:hover { background: var(--surface3); color: var(--text); }
+
+.btn-full { width: 100%; justify-content: center; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,9,18,0.75);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+  backdrop-filter: blur(3px);
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h2 {
+  font-family: var(--font-head);
+  font-size: 18px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+}
+.modal-close {
+  background: none; border: none;
+  color: var(--text-muted);
+  font-size: 22px; cursor: pointer;
+  line-height: 1; padding: 0 2px;
+  transition: color 0.15s;
+}
+.modal-close:hover { color: var(--text); }
+
+.modal-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* ── DUTY LIST (in modal) ── */
+.duty-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.duty-list-item {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--item-color, var(--border2));
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.duty-list-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.duty-list-name {
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.duty-list-time {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.duty-list-notes {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.duty-list-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* ── TYPE GRID ── */
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.type-btn {
+  background: color-mix(in srgb, var(--type-color) 10%, var(--surface2));
+  border: 1px solid color-mix(in srgb, var(--type-color) 25%, var(--border));
+  border-radius: 8px;
+  padding: 10px 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s, border-color 0.2s;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+.type-btn:hover {
+  background: color-mix(in srgb, var(--type-color) 18%, var(--surface2));
+  border-color: color-mix(in srgb, var(--type-color) 50%, transparent);
+}
+.type-btn.selected {
+  background: color-mix(in srgb, var(--type-color) 25%, var(--surface2));
+  border-color: var(--type-color);
+  box-shadow: 0 0 0 1px var(--type-color);
+  color: var(--type-color);
+}
+.type-time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.type-btn.selected .type-time { color: color-mix(in srgb, var(--type-color) 80%, var(--text)); }
+
+/* ── FORM ── */
+.form-section { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.form-row { display: flex; gap: 10px; }
+.form-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.form-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  width: 100%;
+  transition: border-color 0.15s;
+  outline: none;
+}
+.form-input:focus { border-color: var(--accent2); }
+.form-input[type="time"] { font-family: var(--font-mono); font-size: 14px; }
+.form-textarea { resize: vertical; min-height: 60px; }
+
+/* ── CHECKBOXES ── */
+.checkbox-group { display: flex; gap: 12px; flex-wrap: wrap; }
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 7px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.checkbox-label:hover { background: var(--surface3); border-color: var(--border2); }
+.checkbox-label input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; cursor: pointer; }
+.checkbox-label:has(input:checked) {
+  background: rgba(255,87,51,0.1);
+  border-color: rgba(255,87,51,0.4);
+  color: #FFA08A;
+}
+
+/* ── DAY NUM GRID ── */
+.day-num-grid {
+  display: flex;
+  gap: 8px;
+}
+.day-num-btn {
+  flex: 1;
+  padding: 10px 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.day-num-btn:hover { background: var(--surface3); border-color: var(--border2); }
+.day-num-btn.selected {
+  background: rgba(78,158,255,0.15);
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+/* ── WEEKS OPTIONS ── */
+.weeks-options { display: flex; gap: 8px; }
+.weeks-btn {
+  flex: 1;
+  padding: 9px 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.weeks-btn:hover { background: var(--surface3); }
+.weeks-btn.selected {
+  background: rgba(157,121,242,0.15);
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+/* ── SETTINGS ── */
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-section:last-child { border-bottom: none; padding-bottom: 0; }
+.settings-heading {
+  font-family: var(--font-head);
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  color: var(--text);
+}
+.settings-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.duty-types-list { display: flex; flex-direction: column; gap: 5px; }
+.duty-type-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+}
+.type-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.type-row-name { flex: 1; font-weight: 600; font-size: 13px; }
+.type-row-time { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+.type-badge {
+  background: rgba(61,95,192,0.25);
+  border: 1px solid rgba(61,95,192,0.5);
+  color: #7898F0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.add-type-form {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.color-picker { display: flex; gap: 6px; flex-wrap: wrap; }
+.color-dot {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.color-dot:hover { transform: scale(1.2); }
+.color-dot.selected { border-color: #fff; transform: scale(1.15); }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ── SETUP INSTRUCTIONS ── */
+.setup-instructions {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+.setup-instructions ol { padding-left: 18px; }
+.setup-instructions code {
+  background: var(--surface3);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent2);
+}
+
+/* ── CALENDAR SELECT ── */
+.cal-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  outline: none;
+  max-width: 180px;
+  transition: border-color 0.15s;
+}
+.cal-select:hover { border-color: var(--border2); }
+.cal-select:focus { border-color: var(--accent2); }
+
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script>
+  window._gapiReady = false;
+  window._gisReady  = false;
+  window.gapiLoaded = function() { window._gapiReady = true; };
+  window.gisLoaded  = function() { window._gisReady  = true; };
+</script>
+<script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ===== CONSTANTS =====
+
+const CYCLE_LENGTH = 8;
+const WORKING_DAYS_PER_CYCLE = 5;
+const STORAGE_KEY = 'atcsm';
+
+const DEFAULT_DUTY_TYPES = [
+  { id: 'C',   name: 'C',   startTime: '06:00', endTime: '12:00', color: '#5B7FE0', overnight: false },
+  { id: 'F',   name: 'F',   startTime: '06:30', endTime: '12:00', color: '#4E9EFF', overnight: false },
+  { id: 'E',   name: 'E',   startTime: '06:30', endTime: '13:30', color: '#2ECC9A', overnight: false },
+  { id: 'D',   name: 'D',   startTime: '08:00', endTime: '16:00', color: '#34D399', overnight: false },
+  { id: 'S',   name: 'S',   startTime: '11:30', endTime: '20:00', color: '#FBBF24', overnight: false },
+  { id: 'L',   name: 'L',   startTime: '13:00', endTime: '22:00', color: '#FF9B3D', overnight: false },
+  { id: 'K',   name: 'K',   startTime: '15:30', endTime: '23:59', color: '#F87171', overnight: false },
+  { id: 'N',   name: 'N',   startTime: '22:00', endTime: '06:30', color: '#9D79F2', overnight: true  },
+  { id: 'OC1', name: 'OC1', startTime: '22:00', endTime: '07:00', color: '#9D79F2', overnight: true  },
+  { id: 'OC2', name: 'OC2', startTime: '06:00', endTime: '18:00', color: '#34D399', overnight: false },
+  { id: 'OC3', name: 'OC3', startTime: '12:00', endTime: '23:59', color: '#FF9B3D', overnight: false },
+];
+
+// ===== UTILITIES =====
+
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+const fmtDate = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseLocalDate = (str) => {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+const addDays = (date, n) => {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+};
+
+const isOvernightTimes = (start, end) => {
+  const toMins = t => { const [h,m] = t.split(':').map(Number); return h*60+m; };
+  return toMins(start) > toMins(end);
+};
+
+const buildTitle = (duty, dutyTypes) => {
+  const type = dutyTypes.find(t => t.id === duty.typeId);
+  const name = type ? type.name : (duty.customName || 'Custom');
+  const attrs = [];
+  if (duty.isOvertime) attrs.push('OT');
+  if (duty.isFlexi)    attrs.push('Flexi');
+  if (duty.isUCA)      attrs.push('UCA');
+  if (duty.isSwapped)  attrs.push(duty.swappedWith ? `Swap - ${duty.swappedWith}` : 'Swap');
+  return attrs.length ? `${name} (${attrs.join(', ')})` : name;
+};
+
+// Returns 1-5 if date is a working day in the cycle, null if rest day or no config
+const getCycleDayForDate = (dateStr, cycleConfig) => {
+  if (!cycleConfig) return null;
+  const { startDate, startDayNum } = cycleConfig;
+  const start = parseLocalDate(startDate);
+  const target = parseLocalDate(dateStr);
+  const diffMs = target - start;
+  const diffDays = Math.round(diffMs / 86400000);
+  // Cycle position of startDate is (startDayNum - 1), so adjust offset
+  const cyclePos = ((diffDays + (startDayNum - 1)) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
+  return cyclePos < WORKING_DAYS_PER_CYCLE ? cyclePos + 1 : null;
+};
+
+// ===== STORAGE =====
+
+const loadData = () => {
+  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; }
+  catch { return null; }
+};
+const saveData = (d) => {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
+};
+
+// ===== GOOGLE API STATE =====
+
+const waitForGAPI = () => new Promise((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error('Google API load timeout')), 12000);
+  const check = setInterval(() => {
+    if (window._gapiReady && window._gisReady) { clearInterval(check); clearTimeout(t); resolve(); }
+  }, 100);
+});
+
+// ===== MODAL =====
+
+function Modal({ title, onClose, children, width = '500px' }) {
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onMouseDown={onClose}>
+      <div className="modal-content" style={{ maxWidth: width }} onMouseDown={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>{title}</h2>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ===== DUTY MODAL =====
+
+const BLANK_FORM = {
+  typeId: null, customName: '', startTime: '', endTime: '',
+  isOvertime: false, isFlexi: false, isSwapped: false, swappedWith: '', isUCA: false, notes: ''
+};
+
+function DutyModal({ date, existingDuty, dutyTypes, onSave, onDelete, onClose }) {
+  // CREATE mode: no existing duty — type grid only, clicking a standard type = instant save
+  // EDIT mode:   has existing duty — full form with save button
+  const isEdit = !!existingDuty;
+
+  const [form, setForm] = useState(isEdit ? {
+    typeId: existingDuty.typeId || 'custom',
+    customName: existingDuty.customName || '',
+    startTime: existingDuty.startTime,
+    endTime: existingDuty.endTime,
+    isOvertime: existingDuty.isOvertime,
+    isFlexi: existingDuty.isFlexi,
+    isSwapped: existingDuty.isSwapped,
+    swappedWith: existingDuty.swappedWith || '',
+    isUCA: existingDuty.isUCA,
+    notes: existingDuty.notes || ''
+  } : BLANK_FORM);
+
+  const up = patch => setForm(f => ({ ...f, ...patch }));
+
+  const dateObj = parseLocalDate(date);
+  const displayDate = dateObj.toLocaleDateString('en-GB', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+
+  const buildDuty = (f, baseId) => {
+    const type = dutyTypes.find(t => t.id === f.typeId);
+    const overnight = f.typeId === 'custom'
+      ? isOvernightTimes(f.startTime, f.endTime)
+      : (type?.overnight || false);
+    return {
+      id: baseId || uid(),
+      date,
+      typeId: f.typeId === 'custom' ? null : f.typeId,
+      customName: f.typeId === 'custom' ? f.customName : '',
+      startTime: f.startTime, endTime: f.endTime,
+      overnight, isOvertime: f.isOvertime,
+      isFlexi: f.isFlexi, isSwapped: f.isSwapped,
+      swappedWith: f.swappedWith, notes: f.notes,
+      isUCA: f.isUCA, synced: false,
+      googleEventId: existingDuty?.googleEventId || null
+    };
+  };
+
+  // Clicking a standard type in CREATE mode: instant save & close
+  const handleTypeClick = (type) => {
+    if (!isEdit) {
+      onSave(buildDuty({ ...BLANK_FORM, typeId: type.id, startTime: type.startTime, endTime: type.endTime }, uid()));
+      onClose();
+    } else {
+      up({ typeId: type.id, startTime: type.startTime, endTime: type.endTime });
+    }
+  };
+
+  const handleCustomClick = () => {
+    up({ typeId: 'custom', startTime: form.startTime || '09:00', endTime: form.endTime || '17:00' });
+  };
+
+  const handleSave = () => {
+    if (!form.typeId) return;
+    if (form.typeId === 'custom' && !form.customName.trim()) return;
+    onSave(buildDuty(form, existingDuty?.id));
+    onClose();
+  };
+
+  const canSave = form.typeId && form.startTime && form.endTime &&
+    (form.typeId !== 'custom' || form.customName.trim());
+
+  // In CREATE mode with 'custom' selected, show the full custom form + save button
+  const showFullForm = isEdit || form.typeId === 'custom';
+
+  return (
+    <Modal title={displayDate} onClose={onClose} width="480px">
+      <div className="modal-body">
+        {!isEdit && !form.typeId && (
+          <p className="modal-desc">Select a duty type — standard duties are saved instantly.</p>
+        )}
+
+        <div className="form-section">
+          {showFullForm && <label className="form-label">Duty Type</label>}
+          <div className="type-grid">
+            {dutyTypes.map(type => (
+              <button key={type.id}
+                className={`type-btn ${form.typeId === type.id ? 'selected' : ''}`}
+                style={{ '--type-color': type.color }}
+                onClick={() => handleTypeClick(type)}>
+                {type.name}
+                <span className="type-time">{type.startTime}–{type.endTime}</span>
+              </button>
+            ))}
+            <button className={`type-btn ${form.typeId === 'custom' ? 'selected' : ''}`}
+              style={{ '--type-color': '#2ECC9A' }}
+              onClick={handleCustomClick}>
+              Custom
+              <span className="type-time">Set times</span>
+            </button>
+          </div>
+        </div>
+
+        {showFullForm && form.typeId && (
+          <>
+            {form.typeId === 'custom' && (
+              <div className="form-section">
+                <label className="form-label">Duty Name</label>
+                <input className="form-input" type="text" placeholder="e.g. Training, Standby…"
+                  value={form.customName} onChange={e => up({ customName: e.target.value })} autoFocus />
+              </div>
+            )}
+
+            <div className="form-row">
+              <div className="form-section">
+                <label className="form-label">Start Time</label>
+                <input className="form-input" type="time" value={form.startTime}
+                  onChange={e => up({ startTime: e.target.value })} />
+              </div>
+              <div className="form-section">
+                <label className="form-label">End Time</label>
+                <input className="form-input" type="time" value={form.endTime}
+                  onChange={e => up({ endTime: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="form-section">
+              <label className="form-label">Attributes</label>
+              <div className="checkbox-group">
+                {[['isOvertime','OT'],['isFlexi','Flexi'],['isSwapped','Swap'],['isUCA','UCA']].map(([k,label]) => (
+                  <label key={k} className="checkbox-label">
+                    <input type="checkbox" checked={form[k]} onChange={e => up({ [k]: e.target.checked })} />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+              {form.isSwapped && (
+                <input className="form-input" style={{ marginTop: '8px' }} type="text"
+                  placeholder="Name of person swapped with"
+                  value={form.swappedWith} onChange={e => up({ swappedWith: e.target.value })} />
+              )}
+            </div>
+
+            <div className="form-section">
+              <label className="form-label">Notes</label>
+              <textarea className="form-input form-textarea" placeholder="Any additional information…"
+                value={form.notes} onChange={e => up({ notes: e.target.value })} />
+            </div>
+
+            <div className="modal-footer">
+              {isEdit && (
+                <button className="btn-icon btn-danger" style={{ marginRight:'auto', width:'auto', padding:'6px 12px', fontSize:'13px' }}
+                  onClick={() => { onDelete(existingDuty.id); onClose(); }}>
+                  Delete
+                </button>
+              )}
+              <button className="btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn-primary" onClick={handleSave} disabled={!canSave}>Save</button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// ===== CYCLE MODAL =====
+
+function CycleModal({ onGenerate, onClose }) {
+  const [startDate, setStartDate] = useState(fmtDate(addDays(new Date(), 1)));
+  const [startDay, setStartDay]   = useState(1);
+  const [busy, setBusy]           = useState(false);
+
+  const handle = async () => {
+    setBusy(true);
+    await onGenerate({ startDate, startDayNum: startDay });
+    setBusy(false);
+  };
+
+  return (
+    <Modal title="Generate Shift Cycle" onClose={onClose} width="420px">
+      <div className="modal-body">
+        <p className="modal-desc">
+          Creates 5 <strong>recurring</strong> all-day events in Google Calendar (Day 1–5)
+          following a 5-on / 3-off cycle, repeating indefinitely. Rest days are left empty.
+          When the roster is published, delete the relevant cycle events and replace them
+          with your actual duties.
+        </p>
+
+        <div className="form-section">
+          <label className="form-label">First Working Day of Next Period</label>
+          <input className="form-input" type="date" value={startDate}
+            onChange={e => setStartDate(e.target.value)} />
+        </div>
+
+        <div className="form-section">
+          <label className="form-label">Which cycle day does this date fall on?</label>
+          <div className="day-num-grid">
+            {[1,2,3,4,5].map(n => (
+              <button key={n} className={`day-num-btn ${startDay === n ? 'selected' : ''}`}
+                onClick={() => setStartDay(n)}>
+                Day {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={handle} disabled={busy}>
+            {busy ? 'Creating events…' : 'Generate in Calendar'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ===== SETTINGS MODAL =====
+
+const PALETTE = ['#FF9B3D','#4E9EFF','#9D79F2','#5B7FE0','#2ECC9A','#F87171','#FBBF24','#60A5FA','#FB7185','#34D399'];
+
+function SettingsModal({ dutyTypes, clientId, onSave, onClose }) {
+  const [types, setTypes]   = useState(dutyTypes);
+  const [cid, setCid]       = useState(clientId);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newT, setNewT]     = useState({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF', overnight:false });
+  const upNew = p => setNewT(f => ({ ...f, ...p }));
+
+  const addType = () => {
+    if (!newT.name.trim()) return;
+    setTypes(prev => [...prev, { ...newT, id: uid() }]);
+    setNewT({ name:'', startTime:'09:00', endTime:'17:00', color:'#4E9EFF', overnight:false });
+    setShowAdd(false);
+  };
+
+  return (
+    <Modal title="Settings" onClose={onClose} width="600px">
+      <div className="modal-body">
+
+        <div className="settings-section">
+          <h3 className="settings-heading">Duty Types</h3>
+          <div className="duty-types-list">
+            {types.map(t => (
+              <div key={t.id} className="duty-type-row">
+                <span className="type-color-dot" style={{ background: t.color }} />
+                <span className="type-row-name">{t.name}</span>
+                <span className="type-row-time">{t.startTime} – {t.endTime}</span>
+                {t.overnight && <span className="type-badge">overnight</span>}
+                <button className="btn-icon btn-danger" onClick={() => setTypes(prev => prev.filter(x => x.id !== t.id))}>×</button>
+              </div>
+            ))}
+          </div>
+
+          {showAdd ? (
+            <div className="add-type-form">
+              <div className="form-row">
+                <div className="form-section" style={{ flex:2 }}>
+                  <label className="form-label">Name</label>
+                  <input className="form-input" type="text" placeholder="e.g. Standby" value={newT.name} onChange={e => upNew({ name: e.target.value })} autoFocus />
+                </div>
+                <div className="form-section">
+                  <label className="form-label">Start</label>
+                  <input className="form-input" type="time" value={newT.startTime} onChange={e => upNew({ startTime: e.target.value })} />
+                </div>
+                <div className="form-section">
+                  <label className="form-label">End</label>
+                  <input className="form-input" type="time" value={newT.endTime} onChange={e => upNew({ endTime: e.target.value })} />
+                </div>
+              </div>
+              <div className="form-row" style={{ alignItems:'flex-end', gap:'14px' }}>
+                <div className="form-section">
+                  <label className="form-label">Colour</label>
+                  <div className="color-picker">
+                    {PALETTE.map(c => (
+                      <button key={c} className={`color-dot ${newT.color===c?'selected':''}`}
+                        style={{ background:c }} onClick={() => upNew({ color:c })} />
+                    ))}
+                  </div>
+                </div>
+                <label className="checkbox-label" style={{ flexShrink:0 }}>
+                  <input type="checkbox" checked={newT.overnight} onChange={e => upNew({ overnight: e.target.checked })} />
+                  <span>Overnight</span>
+                </label>
+              </div>
+              <div className="modal-footer" style={{ marginTop:0 }}>
+                <button className="btn-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+                <button className="btn-primary" onClick={addType}>Add Type</button>
+              </div>
+            </div>
+          ) : (
+            <button className="btn-secondary btn-full" onClick={() => setShowAdd(true)}>+ Add Duty Type</button>
+          )}
+        </div>
+
+        <div className="settings-section">
+          <h3 className="settings-heading">Google Calendar — OAuth Setup</h3>
+          <div className="setup-instructions">
+            <ol>
+              <li>Go to <strong>console.cloud.google.com</strong> → APIs &amp; Services → Library</li>
+              <li>Enable the <strong>Google Calendar API</strong></li>
+              <li>Go to <strong>Credentials</strong> → Create Credentials → OAuth 2.0 Client ID</li>
+              <li>Application type: <strong>Web application</strong></li>
+              <li>Add the URL you serve this file from as an <strong>Authorised JavaScript origin</strong><br/>
+                  (e.g. <code>http://localhost:8080</code> for local use)</li>
+              <li>Copy the Client ID below</li>
+            </ol>
+          </div>
+          <div className="form-section">
+            <label className="form-label">Client ID</label>
+            <input className="form-input" type="text"
+              placeholder="xxxxxxxxxx.apps.googleusercontent.com"
+              value={cid} onChange={e => setCid(e.target.value)} />
+          </div>
+          <p className="settings-desc" style={{ fontSize:'11px' }}>
+            💡 Serve this file with a simple server:<br/>
+            <code>npx serve .</code> or <code>python3 -m http.server 8080</code>
+          </p>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={() => onSave({ dutyTypes: types, clientId: cid })}>Save Settings</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+// ===== CALENDAR GRID =====
+
+function CalendarGrid({ year, month, duties, dutyTypes, cycleConfig, todayStr, onDayClick }) {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDOW    = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
+  const prevMonthTotal = new Date(year, month, 0).getDate();
+
+  const cells = [];
+  for (let i = firstDOW - 1; i >= 0; i--)
+    cells.push({ date: fmtDate(new Date(year, month-1, prevMonthTotal - i)), cur: false });
+  for (let d = 1; d <= daysInMonth; d++)
+    cells.push({ date: fmtDate(new Date(year, month, d)), cur: true });
+  while (cells.length < 42)
+    cells.push({ date: fmtDate(new Date(year, month+1, cells.length - daysInMonth - firstDOW + 1)), cur: false });
+
+  return (
+    <div className="calendar">
+      <div className="calendar-header">
+        {['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => (
+          <div key={d} className="cal-header-cell">{d}</div>
+        ))}
+      </div>
+      <div className="calendar-grid">
+        {cells.map(({ date, cur }) => {
+          const duty = duties.find(d => d.date === date) || null;
+          const dow = parseLocalDate(date).getDay();
+          const weekend = dow === 0 || dow === 6;
+          const type = duty ? dutyTypes.find(t => t.id === duty.typeId) : null;
+          const color = type?.color || '#2ECC9A';
+          const attrBits = duty ? [
+            duty.isOvertime && 'OT',
+            duty.isFlexi    && 'Flexi',
+            duty.isSwapped  && 'Swap',
+            duty.isUCA      && 'UCA',
+          ].filter(Boolean) : [];
+          const cycleDay = (!duty && cur) ? getCycleDayForDate(date, cycleConfig) : null;
+          return (
+            <div key={date}
+              className={`day-cell ${!cur?'other-month':''} ${date===todayStr?'today':''} ${weekend?'weekend':''}`}
+              onClick={() => cur && onDayClick(date)}>
+              <span className="day-number">{parseLocalDate(date).getDate()}</span>
+              <div className="day-duties">
+                {duty && (
+                  <div className="duty-chip" style={{ '--chip-color': color }}>
+                    <span className="chip-name">{type ? type.name : (duty.customName || 'Custom')}</span>
+                    <span className="chip-time">{duty.startTime}–{duty.endTime}{duty.overnight?' (+1)':''}</span>
+                    {attrBits.length > 0 && <span className="chip-attrs">{attrBits.join(' · ')}</span>}
+                  </div>
+                )}
+                {cycleDay && (
+                  <div className="cycle-chip">
+                    <span className="cycle-chip-label">Day {cycleDay}</span>
+                    <span className="cycle-chip-sub">cycle</span>
+                  </div>
+                )}
+              </div>
+              {cur && !duty && !cycleDay && <span className="day-add-hint">+</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ===== MAIN APP =====
+
+function App() {
+  const saved     = loadData();
+  const today     = new Date();
+  const todayStr  = fmtDate(today);
+
+  const [duties,     setDuties]     = useState(saved?.duties     || []);
+  const [dutyTypes,  setDutyTypes]  = useState(saved?.dutyTypes  || DEFAULT_DUTY_TYPES);
+  const [clientId,   setClientId]   = useState(saved?.clientId   || '');
+  const [selectedCalendarId, setSelectedCalendarId] = useState(saved?.selectedCalendarId || 'primary');
+  const [cycleConfig, setCycleConfig] = useState(saved?.cycleConfig || null);
+  const [calendars,  setCalendars]  = useState([]);
+  const [curDate,    setCurDate]    = useState(today);
+  const [modalDate,  setModalDate]  = useState(null);
+  const [showCycle,  setShowCycle]  = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [signedIn,   setSignedIn]   = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncMsg,    setSyncMsg]    = useState('');
+  const [apiReady,   setApiReady]   = useState(false);
+
+  const tokenRef   = useRef(null);
+  const pendingRef = useRef(null);
+
+  const year  = curDate.getFullYear();
+  const month = curDate.getMonth();
+
+  // Persist
+  useEffect(() => { saveData({ duties, dutyTypes, clientId, selectedCalendarId, cycleConfig }); }, [duties, dutyTypes, clientId, selectedCalendarId, cycleConfig]);
+
+  // Init Google APIs when clientId changes
+  useEffect(() => {
+    if (!clientId) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await waitForGAPI();
+        if (cancelled) return;
+
+        await new Promise(resolve => gapi.load('client', resolve));
+        await gapi.client.init({
+          discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest'],
+        });
+
+        tokenRef.current = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
+          callback: (resp) => {
+            if (resp.error) { console.error('OAuth error', resp); return; }
+            setSignedIn(true);
+            fetchCalendars();
+            if (pendingRef.current) { pendingRef.current(); pendingRef.current = null; }
+          },
+        });
+
+        if (!cancelled) setApiReady(true);
+      } catch (err) {
+        console.error('Google API init failed:', err);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  const ensureSignedIn = (action) => {
+    const token = gapi.client.getToken?.();
+    if (signedIn && token) { action(); return; }
+    pendingRef.current = action;
+    tokenRef.current?.requestAccessToken({ prompt: signedIn ? '' : 'consent' });
+  };
+
+  const fetchCalendars = async () => {
+    try {
+      const resp = await gapi.client.request({ path: 'https://www.googleapis.com/calendar/v3/users/me/calendarList' });
+      const items = resp.result.items || [];
+      const writable = items.filter(c => c.accessRole === 'owner' || c.accessRole === 'writer');
+      setCalendars(writable);
+    } catch (err) {
+      console.error('Failed to fetch calendars:', err);
+    }
+  };
+
+  const flashStatus = (status, msg, ms = 4000) => {
+    setSyncStatus(status); setSyncMsg(msg);
+    setTimeout(() => setSyncStatus(null), ms);
+  };
+
+  // ── CRUD ──
+  const saveDuty   = (duty) => setDuties(prev => {
+    const i = prev.findIndex(d => d.id === duty.id);
+    return i >= 0 ? prev.map((d,j) => j===i ? duty : d) : [...prev, duty];
+  });
+  const deleteDuty = (id) => setDuties(prev => prev.filter(d => d.id !== id));
+
+  // ── SYNC ──
+  const doSync = useCallback(async () => {
+    const today = fmtDate(new Date());
+    const pendingDuties = duties.filter(d => d.date >= today);
+    if (pendingDuties.length === 0) { flashStatus('error', 'No upcoming duties to sync.'); return; }
+
+    setSyncStatus('syncing'); setSyncMsg(`Syncing ${pendingDuties.length} duties…`);
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let ok = 0, fail = 0;
+    const updatedDuties = [...duties];
+
+    for (const duty of pendingDuties) {
+      try {
+        // If a cycle placeholder event exists for this date, delete that occurrence first
+        const cycleDay = getCycleDayForDate(duty.date, cycleConfig);
+        if (cycleDay) {
+          try {
+            const dayStart = duty.date;
+            const dayEnd   = fmtDate(addDays(parseLocalDate(duty.date), 1));
+            const listResp = await gapi.client.calendar.events.list({
+              calendarId: selectedCalendarId,
+              timeMin: `${dayStart}T00:00:00Z`,
+              timeMax: `${dayEnd}T00:00:00Z`,
+              q: `Day ${cycleDay}`,
+              singleEvents: true,
+            });
+            const matches = (listResp.result.items || []).filter(e => e.summary === `Day ${cycleDay}`);
+            for (const e of matches) {
+              await gapi.client.calendar.events.delete({ calendarId: selectedCalendarId, eventId: e.id });
+            }
+          } catch (e) { console.warn('Could not remove cycle event:', e); }
+        }
+
+        // Overnight duties (e.g. Night on the 25th) start the evening of the 24th
+        // and end on the 25th. The date stored is the END date (the roster date).
+        const startDate = duty.overnight ? fmtDate(addDays(parseLocalDate(duty.date), -1)) : duty.date;
+        const event = {
+          summary: buildTitle(duty, dutyTypes),
+          description: duty.notes || '',
+          start: { dateTime: `${startDate}T${duty.startTime}:00`, timeZone: tz },
+          end:   { dateTime: `${duty.date}T${duty.endTime}:00`,   timeZone: tz },
+        };
+
+        let eventId = duty.googleEventId;
+        if (eventId) {
+          try {
+            await gapi.client.calendar.events.update({ calendarId: selectedCalendarId, eventId, resource: event });
+          } catch (e) {
+            if (e.status === 404 || e.status === 410) {
+              const r = await gapi.client.calendar.events.insert({ calendarId: selectedCalendarId, resource: event });
+              eventId = r.result.id;
+            } else throw e;
+          }
+        } else {
+          const r = await gapi.client.calendar.events.insert({ calendarId: selectedCalendarId, resource: event });
+          eventId = r.result.id;
+        }
+
+        const idx = updatedDuties.findIndex(d => d.id === duty.id);
+        if (idx >= 0) updatedDuties[idx] = { ...updatedDuties[idx], googleEventId: eventId, synced: true };
+        ok++;
+      } catch (err) {
+        console.error('Sync failed for duty:', duty, err);
+        fail++;
+      }
+    }
+
+    setDuties(updatedDuties);
+    flashStatus(fail ? 'error' : 'success',
+      fail ? `Synced ${ok}, failed ${fail}.` : `✓ Synced ${ok} duties.`);
+  }, [duties, dutyTypes, selectedCalendarId, cycleConfig]);
+
+  const handleSignIn = () => {
+    if (!clientId) { setShowSettings(true); return; }
+    if (!apiReady) { flashStatus('error', 'Google API not ready yet.'); return; }
+    tokenRef.current?.requestAccessToken({ prompt: 'consent' });
+  };
+
+  const handleSync = () => {
+    if (!clientId) { setShowSettings(true); return; }
+    if (!apiReady) { flashStatus('error', 'Google API not ready yet.'); return; }
+    if (!signedIn) { flashStatus('error', 'Please sign in first.'); return; }
+    doSync();
+  };
+
+  // ── CYCLE GENERATOR ──
+  const handleGenerateCycle = async ({ startDate, startDayNum }) => {
+    const doGenerate = async () => {
+      const startObj = parseLocalDate(startDate);
+      // startDayNum (1-5) tells us which cycle position startDate occupies.
+      // For each working day 1-5, calculate its first occurrence relative to startDate,
+      // then create ONE all-day event with RRULE:FREQ=DAILY;INTERVAL=8 (repeats forever).
+      setSyncStatus('syncing'); setSyncMsg('Creating recurring cycle events…');
+      let created = 0, fail = 0;
+
+      for (let dayNum = 1; dayNum <= WORKING_DAYS_PER_CYCLE; dayNum++) {
+        // How many days offset from startDate to the first occurrence of this dayNum?
+        let offset = (dayNum - 1) - (startDayNum - 1);
+        // If negative, that day already passed in this cycle — push to next cycle
+        if (offset < 0) offset += CYCLE_LENGTH;
+
+        const firstDate = fmtDate(addDays(startObj, offset));
+        const nextDay   = fmtDate(addDays(parseLocalDate(firstDate), 1));
+
+        try {
+          await gapi.client.calendar.events.insert({
+            calendarId: selectedCalendarId,
+            resource: {
+              summary: `Day ${dayNum}`,
+              start: { date: firstDate },
+              end:   { date: nextDay },
+              recurrence: ['RRULE:FREQ=DAILY;INTERVAL=8'],
+            }
+          });
+          created++;
+        } catch (err) { console.error(err); fail++; }
+      }
+
+      flashStatus(fail ? 'error' : 'success',
+        fail ? `Created ${created}, failed ${fail}.` : `✓ Created ${created} recurring cycle events.`);
+      setCycleConfig({ startDate, startDayNum });
+      setShowCycle(false);
+    };
+
+    if (!clientId) { setShowSettings(true); return; }
+    ensureSignedIn(doGenerate);
+  };
+
+  const handleSignOut = () => {
+    const token = gapi.client.getToken?.();
+    if (token?.access_token) {
+      google.accounts.oauth2.revoke(token.access_token, () => {});
+      gapi.client.setToken(null);
+    }
+    setSignedIn(false);
+  };
+
+  const pendingDutyCount = duties.filter(d => d.date >= todayStr && !d.synced).length;
+  const totalDutyCount   = duties.filter(d => d.date >= todayStr).length;
+
+  const monthLabel = curDate.toLocaleDateString('en-GB', { month:'long', year:'numeric' }).toUpperCase();
+
+  return (
+    <div className="app" style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+      <header className="app-header">
+        <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
+          <span className="app-logo"><span className="accent">ATC</span> SHIFT MANAGER</span>
+        </div>
+
+        <div className="header-center">
+          <button className="nav-btn" onClick={() => setCurDate(new Date(year, month-1, 1))}>‹</button>
+          <span className="month-label">{monthLabel}</span>
+          <button className="nav-btn" onClick={() => setCurDate(new Date(year, month+1, 1))}>›</button>
+        </div>
+
+        <div className="header-right">
+          {syncStatus && <span className={`sync-status ${syncStatus}`}>{syncMsg}</span>}
+          {signedIn && calendars.length > 0 && (
+            <select className="cal-select"
+              value={selectedCalendarId}
+              onChange={e => setSelectedCalendarId(e.target.value)}>
+              {calendars.map(c => (
+                <option key={c.id} value={c.id}>{c.summary}</option>
+              ))}
+            </select>
+          )}
+          <button className="btn-secondary" onClick={() => setShowCycle(true)}>↻ Cycle</button>
+          {!signedIn
+            ? <button className="btn-primary" onClick={handleSignIn}>Sign in</button>
+            : pendingDutyCount === 0
+              ? <span className="btn-synced">✓ All synced</span>
+              : <button className="btn-primary" onClick={handleSync} disabled={syncStatus === 'syncing'}>
+                  {syncStatus === 'syncing' ? 'Syncing…' : `Sync (${pendingDutyCount}/${totalDutyCount})`}
+                </button>
+          }
+          <button className="btn-icon-lg" onClick={() => setShowSettings(true)} title="Settings">⚙</button>
+          {signedIn && <button className="btn-secondary btn-sm" onClick={handleSignOut}>Sign out</button>}
+        </div>
+      </header>
+
+      <main className="app-main">
+        {!clientId && (
+          <div className="setup-banner">
+            <span>⚠ Google Client ID not configured — sync is disabled.</span>
+            <button className="btn-primary btn-sm" onClick={() => setShowSettings(true)}>Open Settings</button>
+          </div>
+        )}
+        <CalendarGrid year={year} month={month} duties={duties} dutyTypes={dutyTypes}
+          cycleConfig={cycleConfig} todayStr={todayStr} onDayClick={setModalDate} />
+      </main>
+
+      {modalDate && (
+        <DutyModal date={modalDate}
+          existingDuty={duties.find(d => d.date === modalDate) || null}
+          dutyTypes={dutyTypes}
+          onSave={(duty) => { saveDuty(duty); }}
+          onDelete={(id) => { deleteDuty(id); }}
+          onClose={() => setModalDate(null)} />
+      )}
+
+      {showCycle && <CycleModal onGenerate={handleGenerateCycle} onClose={() => setShowCycle(false)} />}
+
+      {showSettings && (
+        <SettingsModal dutyTypes={dutyTypes} clientId={clientId}
+          onSave={({ dutyTypes: dt, clientId: cid }) => {
+            setDutyTypes(dt); setClientId(cid); setShowSettings(false);
+          }}
+          onClose={() => setShowSettings(false)} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
