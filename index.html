@@ -1517,7 +1517,12 @@ function App() {
           {signedIn && calendars.length > 0 && (
             <select className="cal-select"
               value={selectedCalendarId}
-              onChange={e => setSelectedCalendarId(e.target.value)}>
+              onChange={e => {
+                const newId = e.target.value;
+                setSelectedCalendarId(newId);
+                // Reset sync state — event IDs and synced flags belong to the previous calendar
+                setDuties(prev => prev.map(d => ({ ...d, synced: false, googleEventId: null })));
+              }}>
               {calendars.map(c => (
                 <option key={c.id} value={c.id}>{c.summary}</option>
               ))}
