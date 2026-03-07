@@ -1049,14 +1049,12 @@ function CycleModal({ onGenerate, onClose }) {
     <Modal title="Generate Shift Cycle" onClose={onClose} width="420px">
       <div className="modal-body">
         <p className="modal-desc">
-          Creates 5 <strong>recurring</strong> all-day events in Google Calendar (Day 1–5)
-          following a 5-on / 3-off cycle, repeating indefinitely. Rest days are left empty.
-          When the roster is published, delete the relevant cycle events and replace them
-          with your actual duties.
+          Creates placeholder duties for 5-on / 3-off twist, projected into the future.
+          These are later removed when rostered duties are selected.
         </p>
 
         <div className="form-section">
-          <label className="form-label">First Working Day of Next Period</label>
+          <label className="form-label">First Working Day of Next Twist</label>
           <input className="form-input" type="date" value={startDate}
             onChange={e => setStartDate(e.target.value)} />
         </div>
@@ -1247,7 +1245,6 @@ function CalendarGrid({ year, month, duties, dutyTypes, cycleConfig, todayStr, o
                 {cycleDay && (
                   <div className="cycle-chip">
                     <span className="cycle-chip-label">Day {cycleDay}</span>
-                    <span className="cycle-chip-sub">cycle</span>
                   </div>
                 )}
               </div>
@@ -1312,14 +1309,24 @@ function App() {
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly',
           callback: (resp) => {
-            if (resp.error) { console.error('OAuth error', resp); return; }
+            if (resp.error) {
+              // Silent re-auth failed (e.g. no prior consent) — not an error, just stay signed out
+              if (resp.error === 'interaction_required' || resp.error === 'login_required') return;
+              console.error('OAuth error', resp);
+              return;
+            }
             setSignedIn(true);
             fetchCalendars();
             if (pendingRef.current) { pendingRef.current(); pendingRef.current = null; }
           },
         });
 
-        if (!cancelled) setApiReady(true);
+        if (!cancelled) {
+          setApiReady(true);
+          // Attempt silent re-authentication — works if the user previously consented.
+          // No popup is shown; if it fails we simply stay signed out.
+          tokenRef.current.requestAccessToken({ prompt: '' });
+        }
       } catch (err) {
         console.error('Google API init failed:', err);
       }
@@ -1508,7 +1515,7 @@ function App() {
       <header className="app-header">
         <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
           <span className="app-logo"><span className="accent">ATC</span> SHIFT MANAGER</span>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.0</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:'10px', color:'var(--text-muted)', letterSpacing:'1px' }}>v1.1</span>
         </div>
 
         <div className="header-center">
