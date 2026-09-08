@@ -1774,16 +1774,20 @@ function App() {
 
     for (const duty of pending) {
       try {
-        // Remove cycle placeholder
-        const cycleDay = getCycleDayForDate(duty.date, cycleConfig);
-        if (cycleDay) {
+        // Remove cycle placeholder for this date (if any)
+        const cycleSlotHere = getCycleSlotForDate(duty.date, cycleConfig);
+        if (cycleSlotHere && !cycleSlotHere.isRest) {
           try {
             const dayEnd = fmtDate(addDays(parseLocalDate(duty.date), 1));
+            // Search a window wide enough to catch overnight cycle events
+            const searchMin = `${fmtDate(addDays(parseLocalDate(duty.date), -1))}T00:00:00Z`;
+            const searchMax = `${dayEnd}T23:59:59Z`;
             const lr = await gapi.client.calendar.events.list({
-              calendarId: calId, timeMin: `${duty.date}T00:00:00Z`, timeMax: `${dayEnd}T00:00:00Z`,
-              q: `Day ${cycleDay}`, singleEvents: true,
+              calendarId: calId, timeMin: searchMin, timeMax: searchMax,
+              privateExtendedProperty: 'source=atcsm-cycle', singleEvents: true,
             });
-            for (const e of (lr.result.items||[]).filter(e => e.summary===`Day ${cycleDay}`))
+            const title = `(${cycleSlotHere.label})`;
+            for (const e of (lr.result.items||[]).filter(e => e.summary === title))
               await gapi.client.calendar.events.delete({ calendarId: calId, eventId: e.id });
           } catch (e) { console.warn('Could not remove cycle event:', e); }
         }
