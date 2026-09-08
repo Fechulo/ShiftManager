@@ -850,14 +850,13 @@ const APP_VERSION            = 'v1.4';
 // ===== DEFAULT PROFILES =====
 
 const DATCC_DUTIES = [
-  { id: 'C',   name: 'C',   startTime: '06:00', endTime: '12:00', color: '#5B7FE0', overnight: false },
-  { id: 'F',   name: 'F',   startTime: '06:30', endTime: '12:00', color: '#4E9EFF', overnight: false },
-  { id: 'E',   name: 'E',   startTime: '06:30', endTime: '13:30', color: '#3DCFE3', overnight: false },
-  { id: 'D',   name: 'D',   startTime: '08:00', endTime: '16:00', color: '#34D399', overnight: false },
-  { id: 'S',   name: 'S',   startTime: '11:30', endTime: '20:00', color: '#FBBF24', overnight: false },
-  { id: 'L',   name: 'L',   startTime: '13:00', endTime: '22:00', color: '#FF9B3D', overnight: false },
-  { id: 'K',   name: 'K',   startTime: '15:30', endTime: '23:59', color: '#F87171', overnight: false },
-  { id: 'N',   name: 'N',   startTime: '22:00', endTime: '06:30', color: '#9D79F2', overnight: true  },
+  { id: 'C',   name: 'C',   startTime: '06:00', endTime: '13:45', color: '#5B7FE0', overnight: false },
+  { id: 'F',   name: 'F',   startTime: '06:30', endTime: '14:15', color: '#4E9EFF', overnight: false },
+  { id: 'E',   name: 'E',   startTime: '06:30', endTime: '14:45', color: '#3DCFE3', overnight: false },
+  { id: 'D',   name: 'D',   startTime: '08:00', endTime: '17:00', color: '#34D399', overnight: false },
+  { id: 'L',   name: 'L',   startTime: '13:00', endTime: '23:15', color: '#FF9B3D', overnight: false },
+  { id: 'K',   name: 'K',   startTime: '14:00', endTime: '23:59', color: '#F87171', overnight: false },
+  { id: 'N',   name: 'N',   startTime: '23:00', endTime: '06:45', color: '#9D79F2', overnight: true  },
   { id: 'OC1', name: 'OC1', startTime: '22:00', endTime: '07:00', color: '#9D79F2', overnight: true  },
   { id: 'OC2', name: 'OC2', startTime: '06:00', endTime: '18:00', color: '#34D399', overnight: false },
   { id: 'OC3', name: 'OC3', startTime: '12:00', endTime: '23:59', color: '#FF9B3D', overnight: false },
@@ -872,15 +871,6 @@ const DATCC_ATTRS = [
 
 const DEFAULT_PROFILES = [
   { id: 'datcc',   name: 'DATCC',   dutyTypes: DATCC_DUTIES,  attributes: DATCC_ATTRS },
-  { id: 'rotunda', name: 'Rotunda', dutyTypes: [
-      { id: 'LD', name: 'LD', startTime: '07:30', endTime: '20:30', color: '#4E9EFF', overnight: false },
-      { id: 'ND', name: 'ND', startTime: '20:00', endTime: '08:00', color: '#9D79F2', overnight: true  },
-    ],
-    attributes: [
-      { id: 'ot',    name: 'OT',    hasFreeText: false },
-      { id: 'swapped', name: 'Swap', hasFreeText: true, freeTextLabel: 'Swapped with' },
-    ]
-  },
 ];
 
 // ===== UTILITIES =====
