@@ -262,6 +262,13 @@ body {
   white-space: nowrap;
   letter-spacing: 0.5px;
 }
+.cycle-chip-time {
+  font-size: 8px;
+  color: var(--text-muted);
+  opacity: 0.8;
+  display: block;
+  margin-top: 1px;
+}
 
 .cycle-chip-sub {
   font-size: 11px;
@@ -822,6 +829,16 @@ body {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
+
+.day-num-btn.rest-slot {
+  opacity: 0.45;
+  font-style: italic;
+}
+
+.setup-banner-login {
+  background: color-mix(in srgb, var(--accent2) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--accent2) 30%, transparent);
+}
 </style>
 </head>
 <body>
@@ -842,10 +859,21 @@ body {
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
-const CYCLE_LENGTH           = 8;
-const WORKING_DAYS_PER_CYCLE = 5;
+const CYCLE_LENGTH = 9;
+// 4-1-1-3 rotation: E E L L R N R R R  (R = rest, no event)
+const CYCLE_SLOTS = [
+  { label:'E', startTime:'06:00', endTime:'17:00', isRest:false },
+  { label:'E', startTime:'06:00', endTime:'17:00', isRest:false },
+  { label:'L', startTime:'13:00', endTime:'23:59', isRest:false },
+  { label:'L', startTime:'13:00', endTime:'23:59', isRest:false },
+  { label:'R', isRest:true },
+  { label:'N', startTime:'23:00', endTime:'06:45', isRest:false },
+  { label:'R', isRest:true },
+  { label:'R', isRest:true },
+  { label:'R', isRest:true },
+];
 const STORAGE_KEY            = 'atcsm';
-const APP_VERSION            = 'v1.4';
+const APP_VERSION            = 'v1.5';
 
 // ===== DEFAULT PROFILES =====
 
@@ -857,6 +885,7 @@ const DATCC_DUTIES = [
   { id: 'L',   name: 'L',   startTime: '13:00', endTime: '23:15', color: '#FF9B3D', overnight: false },
   { id: 'K',   name: 'K',   startTime: '14:00', endTime: '23:59', color: '#F87171', overnight: false },
   { id: 'N',   name: 'N',   startTime: '23:00', endTime: '06:45', color: '#9D79F2', overnight: true  },
+  { id: 'AD',  name: 'AD',  startTime: '09:15', endTime: '17:30', color: '#FBBF24', overnight: false },
   { id: 'OC1', name: 'OC1', startTime: '22:00', endTime: '07:00', color: '#9D79F2', overnight: true  },
   { id: 'OC2', name: 'OC2', startTime: '06:00', endTime: '18:00', color: '#34D399', overnight: false },
   { id: 'OC3', name: 'OC3', startTime: '12:00', endTime: '23:59', color: '#FF9B3D', overnight: false },
@@ -865,6 +894,7 @@ const DATCC_DUTIES = [
 const DATCC_ATTRS = [
   { id: 'ot',      name: 'OT',      hasFreeText: false },
   { id: 'flexi',   name: 'Flexi',   hasFreeText: false },
+  { id: 'comp',    name: 'Comp',    hasFreeText: false },
   { id: 'swapped', name: 'Swap', hasFreeText: true, freeTextLabel: 'Swapped with' },
   { id: 'uca',     name: 'UCA',     hasFreeText: false },
 ];
@@ -998,18 +1028,19 @@ async function reconcileCalendar(calId, duties, nightMode, dutyTypes, attributes
   } catch (err) { console.error('Reconcile failed:', err); return duties; }
 }
 
-const getCycleDayForDate = (dateStr, cycleConfig) => {
+const getCycleSlotForDate = (dateStr, cycleConfig) => {
   if (!cycleConfig) return null;
-  const { startDate, startDayNum } = cycleConfig;
+  const { startDate, startSlot } = cycleConfig;
   const diffDays = Math.round((parseLocalDate(dateStr) - parseLocalDate(startDate)) / 86400000);
-  const pos = ((diffDays + startDayNum - 1) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
-  return pos < WORKING_DAYS_PER_CYCLE ? pos + 1 : null;
+  const pos = ((diffDays + startSlot) % CYCLE_LENGTH + CYCLE_LENGTH) % CYCLE_LENGTH;
+  return CYCLE_SLOTS[pos];
 };
 
 // ===== STORAGE =====
 
-const loadData = () => { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; } };
-const saveData = d  => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
+// Only non-duty settings are persisted locally (duties live in Google Calendar)
+const loadSettings = () => { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; } };
+const saveSettings = d => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
 
 // ===== GOOGLE API =====
 
@@ -1196,23 +1227,28 @@ function DutyModal({ date, existingDuty, dutyTypes, attributes, onSave, onDelete
 
 function CycleModal({ onGenerate, onClose }) {
   const [startDate, setStartDate] = useState(fmtDate(addDays(new Date(), 1)));
-  const [startDay,  setStartDay]  = useState(1);
-  const [busy,      setBusy]      = useState(false);
-  const handle = async () => { setBusy(true); await onGenerate({ startDate, startDayNum: startDay }); setBusy(false); };
+  const [startSlot, setStartSlot] = useState(0); // 0-based index into CYCLE_SLOTS
+  const [busy, setBusy] = useState(false);
+  const handle = async () => { setBusy(true); await onGenerate({ startDate, startSlot }); setBusy(false); };
   return (
-    <Modal title="Generate Shift Cycle" onClose={onClose} width="420px">
+    <Modal title="Generate Shift Cycle" onClose={onClose} width="440px">
       <div className="modal-body">
-        <p className="modal-desc">Creates placeholder duties for a 5-on / 3-off twist, projected into the future. These are removed when rostered duties are selected.</p>
+        <p className="modal-desc">
+          Creates recurring placeholder duties in Google Calendar for the 4-1-1-3 rotation.
+          Placeholders are deleted individually once the actual roster is published.
+        </p>
         <div className="form-section">
-          <label className="form-label">First Working Day of Next Twist</label>
+          <label className="form-label">A date in the next cycle</label>
           <input className="form-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
         </div>
         <div className="form-section">
-          <label className="form-label">Which cycle day does this date fall on?</label>
-          <div className="day-num-grid">
-            {[1,2,3,4,5].map(n => (
-              <button key={n} className={`day-num-btn ${startDay===n?'selected':''}`}
-                onClick={() => setStartDay(n)}>Day {n}</button>
+          <label className="form-label">Which slot does that date fall on?</label>
+          <div className="day-num-grid" style={{ gridTemplateColumns: 'repeat(9, 1fr)' }}>
+            {CYCLE_SLOTS.map((slot, i) => (
+              <button key={i} className={`day-num-btn ${startSlot===i?'selected':''} ${slot.isRest?'rest-slot':''}`}
+                onClick={() => setStartSlot(i)}>
+                {slot.label}
+              </button>
             ))}
           </div>
         </div>
@@ -1548,7 +1584,7 @@ function CalendarGrid({ year, month, duties, dutyTypes, attributes, cycleConfig,
           const color   = type?.color || '#2ECC9A';
           const attrBits = duty ? buildAttrBits(duty, attributes) : [];
           const overnightTag = duty?.overnight ? (nightMode==='startDate' ? ' →+1' : ' ←-1') : '';
-          const cycleDay = (!duty && cur) ? getCycleDayForDate(date, cycleConfig) : null;
+          const cycleSlot = (!duty && cur) ? getCycleSlotForDate(date, cycleConfig) : null;
           return (
             <div key={date}
               className={`day-cell ${!cur?'other-month':''} ${date===todayStr?'today':''} ${weekend?'weekend':''}`}
@@ -1562,13 +1598,14 @@ function CalendarGrid({ year, month, duties, dutyTypes, attributes, cycleConfig,
                     {attrBits.length > 0 && <span className="chip-attrs">{attrBits.join(' · ')}</span>}
                   </div>
                 )}
-                {cycleDay && (
+                {cycleSlot && !cycleSlot.isRest && (
                   <div className="cycle-chip">
-                    <span className="cycle-chip-label">Day {cycleDay}</span>
+                    <span className="cycle-chip-label">({cycleSlot.label})</span>
+                    {cycleSlot.startTime && <span className="cycle-chip-time">{cycleSlot.startTime}–{cycleSlot.endTime}</span>}
                   </div>
                 )}
               </div>
-              {cur && !duty && !cycleDay && <span className="day-add-hint">+</span>}
+              {cur && !duty && !(cycleSlot && !cycleSlot.isRest) && <span className="day-add-hint">+</span>}
             </div>
           );
         })}
@@ -1580,24 +1617,20 @@ function CalendarGrid({ year, month, duties, dutyTypes, attributes, cycleConfig,
 // ===== MAIN APP =====
 
 function App() {
-  const saved    = loadData();
+  const saved    = loadSettings();
   const today    = new Date();
   const todayStr = fmtDate(today);
 
-  // Migration: wrap old dutyTypes into DATCC profile if needed
   const initProfiles = (() => {
     if (saved?.profiles) return saved.profiles.map(p => ({ ...p, attributes: p.attributes || [] }));
-    if (saved?.dutyTypes) return [{ id:'datcc', name:'DATCC', dutyTypes: saved.dutyTypes, attributes: DATCC_ATTRS }, ...DEFAULT_PROFILES.slice(1)];
     return DEFAULT_PROFILES;
   })();
   const initActiveId = saved?.activeProfileId || initProfiles[0]?.id || 'datcc';
-  // Migration: duties to new attrs format
-  const initDuties = (saved?.duties || []).map(migrateDuty);
 
   const [profiles,           setProfiles]           = useState(initProfiles);
   const [activeProfileId,    setActiveProfileId]    = useState(initActiveId);
   const [nightMode,          setNightMode]          = useState(saved?.nightMode || 'endDate');
-  const [duties,             setDuties]             = useState(initDuties);
+  const [duties,             setDuties]             = useState([]);   // always loaded from GCal
   const [clientId,           setClientId]           = useState(saved?.clientId || '');
   const [selectedCalendarId, setSelectedCalendarId] = useState(saved?.selectedCalendarId || 'primary');
   const [cycleConfig,        setCycleConfig]        = useState(saved?.cycleConfig || null);
@@ -1635,8 +1668,8 @@ function App() {
   useEffect(() => { activeIdRef.current  = activeProfileId; }, [activeProfileId]);
 
   useEffect(() => {
-    saveData({ duties, profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig });
-  }, [duties, profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig]);
+    saveSettings({ profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig });
+  }, [profiles, activeProfileId, nightMode, clientId, selectedCalendarId, cycleConfig]);
 
   const flashStatus = (status, msg, ms = 4000) => {
     setSyncStatus(status); setSyncMsg(msg);
@@ -1647,7 +1680,7 @@ function App() {
     try { gapi.client.setToken(null); } catch {}
     localStorage.removeItem('atcsm_token');
     if (tokenTimerRef.current) { clearTimeout(tokenTimerRef.current); tokenTimerRef.current = null; }
-    setSignedIn(false); setCalendars([]);
+    setSignedIn(false); setCalendars([]); setDuties([]);
     if (message) flashStatus('error', message);
   };
 
@@ -1804,25 +1837,35 @@ function App() {
     doSync();
   };
 
-  const handleGenerateCycle = async ({ startDate, startDayNum }) => {
+  const handleGenerateCycle = async ({ startDate, startSlot }) => {
     const doGenerate = async () => {
       const calId = calendarIdRef.current;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       setSyncStatus('syncing'); setSyncMsg('Creating recurring cycle events…');
       let created=0, fail=0;
-      for (let dayNum=1; dayNum<=WORKING_DAYS_PER_CYCLE; dayNum++) {
-        let offset = (dayNum-1)-(startDayNum-1);
-        if (offset<0) offset+=CYCLE_LENGTH;
+      for (let i=0; i<CYCLE_LENGTH; i++) {
+        const slot = CYCLE_SLOTS[i];
+        if (slot.isRest) continue;
+        // Offset from the reference date so slot i falls on startDate
+        let offset = i - startSlot;
+        if (offset < 0) offset += CYCLE_LENGTH;
         const firstDate = fmtDate(addDays(parseLocalDate(startDate), offset));
+        const overnight = isOvernightTimes(slot.startTime, slot.endTime);
+        const endDate   = overnight ? fmtDate(addDays(parseLocalDate(firstDate), 1)) : firstDate;
         try {
           await gapi.client.calendar.events.insert({ calendarId: calId, resource: {
-            summary: `Day ${dayNum}`, start: { date: firstDate }, end: { date: fmtDate(addDays(parseLocalDate(firstDate), 1)) },
-            recurrence: ['RRULE:FREQ=DAILY;INTERVAL=8'],
+            summary: `(${slot.label})`,
+            start: { dateTime: `${firstDate}T${slot.startTime}:00`, timeZone: tz },
+            end:   { dateTime: `${endDate}T${slot.endTime}:00`,     timeZone: tz },
+            colorId: '8',   // graphite
+            recurrence: ['RRULE:FREQ=DAILY;INTERVAL=9'],
+            extendedProperties: { private: { source: 'atcsm-cycle' } },
           }});
           created++;
         } catch (err) { console.error(err); fail++; }
       }
       flashStatus(fail?'error':'success', fail?`Created ${created}, failed ${fail}.`:`Created ${created} recurring cycle events.`);
-      setCycleConfig({ startDate, startDayNum });
+      setCycleConfig({ startDate, startSlot });
       setShowCycle(false);
     };
     if (!clientId) { setShowSettings(true); return; }
@@ -1889,6 +1932,12 @@ function App() {
           <div className="setup-banner">
             <span>⚠ Google Client ID not configured — sync is disabled.</span>
             <button className="btn-primary btn-sm" onClick={() => setShowSettings(true)}>Open Settings</button>
+          </div>
+        )}
+        {clientId && !signedIn && (
+          <div className="setup-banner setup-banner-login">
+            <span>Sign in to load your roster from Google Calendar.</span>
+            <button className="btn-primary btn-sm" onClick={handleSignIn}>Sign in with Google</button>
           </div>
         )}
         <CalendarGrid year={year} month={month} duties={duties} dutyTypes={dutyTypes}
